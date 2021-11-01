@@ -1,7 +1,7 @@
 #pragma once
 //#include "tls_server.hpp"
 
-//tls_connection sınıfı için callback tablosu
+//Circular dependency olayını engellemek için template kullanmam gerekti
 template <typename source_t>
 class connection_events_i
 {

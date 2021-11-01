@@ -24,6 +24,7 @@ tls_connection::tls_connection(
 )
 	: secure_stream(io_context, ssl_context), callback_table(cb_table)
 {
+	
 }
 
 void tls_connection::start()
@@ -32,7 +33,11 @@ void tls_connection::start()
 
 	secure_stream.async_handshake(
 		ssl::stream_base::server,
-		boost::bind(&tls_connection::handle_handshake, this, boost::asio::placeholders::error)
+		boost::bind(
+			&tls_connection::handle_handshake,
+			shared_from_this(),
+			boost::asio::placeholders::error
+		)
 	);
 }
 
@@ -54,7 +59,7 @@ void tls_connection::start_read()
 {
 	boost::asio::async_read(secure_stream, boost::asio::buffer(read_buffer),
 			boost::bind(
-				&tls_connection::handle_read, this,
+				&tls_connection::handle_read, shared_from_this(),
 				boost::asio::placeholders::error,
 				boost::asio::placeholders::bytes_transferred
 	));
@@ -98,35 +103,39 @@ tls_server::tls_server(
 	boost::asio::io_context &io_ctx,
 	ssl::context &ssl_ctx
 )
-	: io_context(io_ctx), ssl_context(ssl_ctx), acceptor(io_context)
+	: io_context(io_ctx),
+	ssl_context(ssl_ctx),
+	acceptor(io_context, ip::tcp::endpoint(ip::tcp::v4(), listen_port))
 {
+	start_accept();
 }
 
 void tls_server::start_accept()
 {
 	tls_connection::pointer_t new_connection = tls_connection::create(io_context, ssl_context, nullptr);
-	
+
 	acceptor.async_accept(new_connection->socket(), boost::bind(
 		&tls_server::handle_accept, this, new_connection,
 		boost::asio::placeholders::error
 	));
+
+	LOG(DEBUG) << "Sunucu dinlemeye başladı";
 }
 
 void tls_server::handle_accept(
-	tls_connection::pointer_t new_connection,
+	const tls_connection::pointer_t &new_connection,
 	const boost::system::error_code &err
 )
 {	
 	if (err)
 	{
-		LOG(NOTICE) << endpoint_to_string(new_connection->stream().lowest_layer())
-			<<"async_accept başarısız: " << err.message();
+		LOG(ERROR) << endpoint_to_string(new_connection->stream().lowest_layer())
+			<< "async_accept başarısız: " << err.message();
 		return;
 	}
 
 	LOG(INFO) << "Yeni istemci: "
 		<< endpoint_to_string(new_connection->stream().lowest_layer())
-		//<< new_connection->socket().remote_endpoint().address().to_string()
 		<< " SSL Handshake bekleniyor...";
 	
 	new_connection->start();

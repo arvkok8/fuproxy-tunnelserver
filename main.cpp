@@ -25,6 +25,31 @@ static void log_callback(const AixLog::Metadata &metadata, const std::string &ms
     std::cout << " " << msg << std::endl;
 }
 
+class debug_cb_table : public tls_connection_events_i<tls_connection::pointer_t>
+{
+public:
+    void connect(const tls_connection::pointer_t &){}
+
+    void handshake(const tls_connection::pointer_t &conn){
+        conn->write_async("param olsa da ben alsam");
+    }
+
+    void read(
+        const tls_connection::pointer_t &,
+        boost::array<char, 1024> &b,
+        const boost::system::error_code &e,
+        size_t len
+    ){}
+
+    void write_done(
+        const tls_connection::pointer_t &conn,
+        const boost::system::error_code &e,
+        size_t len
+    ){
+        this->handshake(conn);
+    }
+};
+
 int main(int argc, char **argv) {
     auto aixlog_custom_sink = std::make_shared<AixLog::SinkCallback>(
         AixLog::Severity::trace, &log_callback
@@ -32,7 +57,10 @@ int main(int argc, char **argv) {
     AixLog::Log::init({aixlog_custom_sink});
 
     boost::asio::io_context io_context;
-    boost::asio::ssl::context ssl_context(ssl::context::tls);
+    boost::asio::ssl::context ssl_context(ssl::context::tls_server);
+    ssl_context.use_certificate_chain_file("fuproxy.crt");
+    ssl_context.load_verify_file("fuproxy.crt");
+    ssl_context.set_verify_mode(ssl::context::verify_fail_if_no_peer_cert);
     tls_server server(2700, io_context, ssl_context);
     io_context.run();
 

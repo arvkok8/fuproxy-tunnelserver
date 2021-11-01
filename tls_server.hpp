@@ -67,7 +67,7 @@ public:
 
 private:
 
-	void handle_accept(tls_connection::pointer_t new_connection, const boost::system::error_code &err);
+	void handle_accept(const tls_connection::pointer_t &new_connection, const boost::system::error_code &err);
 	
 	boost::asio::io_context &io_context;
 	boost::asio::ssl::context &ssl_context;

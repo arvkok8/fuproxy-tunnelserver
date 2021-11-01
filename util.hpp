@@ -19,7 +19,7 @@ static std::string endpoint_to_string(const boost::asio::basic_socket<P, E> &soc
 	sstream
 		<< socket.local_endpoint().port()
 		<< ":"
-		<< socket.remote_endpoint().address().to_string()
+		<< socket.remote_endpoint().address()
 		<< ":"
 		<< socket.remote_endpoint().port();
 
