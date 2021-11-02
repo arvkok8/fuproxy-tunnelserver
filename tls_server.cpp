@@ -75,17 +75,6 @@ void tls_connection::handle_write(const boost::system::error_code &err, size_t l
 	if (callback_table) callback_table->write_done(shared_from_this(), err, len);
 }
 
-template <typename buffer_t>
-void tls_connection::write_async(const buffer_t &buf)
-{
-	boost::asio::async_write(secure_stream, boost::asio::buffer(buf), boost::bind(
-		&tls_connection::handle_write, shared_from_this(),
-		boost::asio::placeholders::error,
-		boost::asio::placeholders::bytes_transferred
-	));
-}
-
-
 tls_connection::stream_t& tls_connection::stream()
 {
 	return secure_stream;
@@ -101,18 +90,20 @@ tls_connection::stream_t::next_layer_type& tls_connection::socket()
 tls_server::tls_server(
 	unsigned short listen_port,
 	boost::asio::io_context &io_ctx,
-	ssl::context &ssl_ctx
+	ssl::context &ssl_ctx,
+	const tls_connection::callback_table_t &cb_table
 )
 	: io_context(io_ctx),
 	ssl_context(ssl_ctx),
-	acceptor(io_context, ip::tcp::endpoint(ip::tcp::v4(), listen_port))
+	acceptor(io_context, ip::tcp::endpoint(ip::tcp::v4(), listen_port)),
+	callback_table(cb_table)
 {
 	start_accept();
 }
 
 void tls_server::start_accept()
 {
-	tls_connection::pointer_t new_connection = tls_connection::create(io_context, ssl_context, nullptr);
+	tls_connection::pointer_t new_connection = tls_connection::create(io_context, ssl_context, callback_table);
 
 	acceptor.async_accept(new_connection->socket(), boost::bind(
 		&tls_server::handle_accept, this, new_connection,

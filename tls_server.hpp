@@ -4,6 +4,7 @@
 #include <boost/asio/ssl.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/array.hpp>
+#include <boost/bind/bind.hpp>
 #include "connection_events.hpp"
 
 class tls_connection : public boost::enable_shared_from_this<tls_connection>
@@ -37,7 +38,14 @@ public:
 	 * @tparam buffer_t boost::asio tarafından okunabilecek buffer nesnesi
 	*/
 	template <typename buffer_t>
-	void write_async(const buffer_t &buf);
+	void write_async(const buffer_t &buf)
+	{
+		boost::asio::async_write(secure_stream, boost::asio::buffer(buf), boost::bind(
+			&tls_connection::handle_write, shared_from_this(),
+			boost::asio::placeholders::error,
+			boost::asio::placeholders::bytes_transferred
+		));
+	}
 
 	/**
 	 * @brief Soketten okumaya başla
@@ -60,7 +68,12 @@ private:
 class tls_server
 {
 public:
-	tls_server(unsigned short listen_port, boost::asio::io_context&, boost::asio::ssl::context&);
+	tls_server(
+		unsigned short listen_port,
+		boost::asio::io_context&,
+		boost::asio::ssl::context&,
+		const tls_connection::callback_table_t&
+	);
 	
 	void start_accept();
 	void stop_accept();
@@ -73,4 +86,5 @@ private:
 	boost::asio::ssl::context &ssl_context;
 	boost::asio::ip::tcp::acceptor acceptor;
 	unsigned short port;
+	const tls_connection::callback_table_t &callback_table;
 };
