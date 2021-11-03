@@ -1,0 +1,3 @@
+[submodule "aixlog"]
+	path = aixlog
+	url = https://github.com/badaix/aixlog.git
