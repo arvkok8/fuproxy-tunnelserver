@@ -29,3 +29,19 @@ Sistem genelinde saklamak istiyorsanız:
 ```
 git config --global credential.helper store
 ```
+
+## Projenin derlenmesi
+Sunucu için
+```
+make tunnel -j 8 #İşlemcinizde daha çok thread varsa sayıyı ona göre arttırabilirsiniz
+./tunnel_server
+```
+Debug clienti için
+```
+make debug_client
+./dclient <host> <port>
+```
+Kod nesneleri vb dosyaları silmek için
+```
+make clean
+```
