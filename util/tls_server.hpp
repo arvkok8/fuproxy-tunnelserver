@@ -5,14 +5,14 @@
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/array.hpp>
 #include <boost/bind/bind.hpp>
-#include "connection_events.hpp"
+#include "util/connection_events.hpp"
 
 class tls_connection : public boost::enable_shared_from_this<tls_connection>
 {
 public:
 	typedef boost::shared_ptr<tls_connection> pointer_t;
 	typedef boost::asio::ssl::stream<boost::asio::ip::tcp::socket> stream_t;
-	typedef boost::shared_ptr<tls_connection_events_i< boost::shared_ptr<tls_connection> >> callback_table_t;
+	typedef boost::shared_ptr<tls_connection_events< boost::shared_ptr<tls_connection> >> callback_table_t;
 
 	/**
 	 * @brief Yeni bir SSL Stream oluştur

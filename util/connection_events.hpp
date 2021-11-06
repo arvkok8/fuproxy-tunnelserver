@@ -3,11 +3,11 @@
 
 //Circular dependency olayını engellemek için template kullanmam gerekti
 template <typename source_t>
-class connection_events_i
+class connection_events
 {
 public:
 	
-	virtual ~connection_events_i(){}
+	virtual ~connection_events(){}
 
  	/**
 	  * @brief Bağlantı başarılı bir şekilde kuruldu
@@ -44,10 +44,10 @@ public:
 };
 
 template <typename source_t>
-class tls_connection_events_i : public connection_events_i<source_t>
+class tls_connection_events : public connection_events<source_t>
 {
 public:
-	virtual ~tls_connection_events_i(){}
+	virtual ~tls_connection_events(){}
 
 	virtual void handshake(const source_t &conn) = 0; //TLS Handshake sonucu geldi
 };

@@ -2,7 +2,7 @@
 #include <iomanip>
 #include <boost/make_shared.hpp>
 #include <aixlog.hpp> //to_string değerleri değiştirildi, GitHub verisyonundan farklı!
-#include "tls_server.hpp"
+#include "util/tls_server.hpp"
 
 namespace ssl = boost::asio::ssl;
 
@@ -25,7 +25,7 @@ static void log_callback(const AixLog::Metadata &metadata, const std::string &ms
     std::cout << " " << msg << std::endl;
 }
 
-class debug_cb_table : public tls_connection_events_i<tls_connection::pointer_t>
+class debug_cb_table : public tls_connection_events<tls_connection::pointer_t>
 {
 public:
     void connect(const tls_connection::pointer_t &){}
@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
      * Çözüm olarak ya tls_connection_events_i classı tls_server.hpp içine atılacak
      * ya da bu kadar kötü template parametreleri gerektirmeyen bir çözüm bulunacak
     */
-    boost::shared_ptr<tls_connection_events_i<tls_connection::pointer_t>> cb_table
+    boost::shared_ptr<tls_connection_events<tls_connection::pointer_t>> cb_table
         = boost::make_shared<debug_cb_table>(debug_cb_table());
     /*****************************************************************************/
     

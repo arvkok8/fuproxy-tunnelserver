@@ -16,10 +16,10 @@ main.cxx:
 	$(CXX) $(TUNSRV_CARGS) -c main.cpp
 
 tls_server.cxx:
-	$(CXX) $(TUNSRV_CARGS) -c tls_server.cpp
+	$(CXX) $(TUNSRV_CARGS) -c util/tls_server.cpp
 
 util.cxx:
-	$(CXX) $(TUNSRV_CARGS) -c util.cpp
+	$(CXX) $(TUNSRV_CARGS) -c util/util.cpp
 
 debug_client: debug_client.cpp
 	$(CXX) debug_client.o -o dclient
