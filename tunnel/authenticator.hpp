@@ -12,7 +12,7 @@ namespace fuproxy
 		~authenticator();
 
 		void query_user(const fuproxy::user&);
-		void query_user_async(boost::function<void(const fuproxy::user&)> &f);
+		void query_user_async(const boost::function<void(const fuproxy::user&)> &f);
 
 		/**
 		 * @brief Kullanıcının son aktivite değerini güncelle

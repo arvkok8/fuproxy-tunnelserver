@@ -1,4 +1,6 @@
 #pragma once
+#include <boost/asio.hpp>
+#include <vector>
 //#include "tls_server.hpp"
 
 //Circular dependency olayını engellemek için template kullanmam gerekti
@@ -6,7 +8,8 @@ template <typename source_t>
 class connection_events
 {
 public:
-	
+	typedef boost::asio::dynamic_vector_buffer<uint8_t, std::vector<uint8_t>::allocator_type> buffer_t;
+
 	virtual ~connection_events(){}
 
  	/**
@@ -24,7 +27,7 @@ public:
 	*/
 	virtual void read(
 		const source_t &conn,
-		boost::array<char, 1024> &buffer,
+		buffer_t &buffer,
 		const boost::system::error_code &err,
 		size_t len
 	) = 0;

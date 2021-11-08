@@ -11,7 +11,7 @@ namespace ssl = boost::asio::ssl;
 tls_connection::pointer_t tls_connection::create(
 	boost::asio::io_context &io_context,
 	ssl::context &ssl_context,
-	const tls_connection::callback_table_t &cb_table
+	tls_connection::callback_table_t *const cb_table
 )
 {
 	return pointer_t(new tls_connection(io_context, ssl_context, cb_table));
@@ -20,9 +20,11 @@ tls_connection::pointer_t tls_connection::create(
 tls_connection::tls_connection(
 	boost::asio::io_context &io_context,
 	ssl::context &ssl_context,
-	const callback_table_t &cb_table
+	callback_table_t *const cb_table
 )
-	: secure_stream(io_context, ssl_context), callback_table(cb_table)
+	: secure_stream(io_context, ssl_context),
+	callback_table(cb_table),
+	read_buffer_view(read_buffer)
 {
 	
 }
@@ -55,19 +57,23 @@ void tls_connection::handle_handshake(const boost::system::error_code &err)
 		<< "İstemci ile SSL Handshake başarılı";
 }
 
-void tls_connection::start_read()
+void tls_connection::read_async()
 {
-	boost::asio::async_read(secure_stream, boost::asio::buffer(read_buffer),
-			boost::bind(
-				&tls_connection::handle_read, shared_from_this(),
-				boost::asio::placeholders::error,
-				boost::asio::placeholders::bytes_transferred
-	));
+	boost::asio::async_read(
+		secure_stream,
+		read_buffer_view,
+		boost::asio::transfer_all(),
+		boost::bind(
+			&tls_connection::handle_read, shared_from_this(),
+			boost::asio::placeholders::error,
+			boost::asio::placeholders::bytes_transferred
+		)
+	);
 }
 
 void tls_connection::handle_read(const boost::system::error_code &err, size_t len)
 {
-	if (callback_table) callback_table->read(shared_from_this(), read_buffer, err, len);
+	if (callback_table) callback_table->read(shared_from_this(), read_buffer_view, err, len);
 }
 
 void tls_connection::handle_write(const boost::system::error_code &err, size_t len)
@@ -91,7 +97,7 @@ tls_server::tls_server(
 	unsigned short listen_port,
 	boost::asio::io_context &io_ctx,
 	ssl::context &ssl_ctx,
-	const tls_connection::callback_table_t &cb_table
+	tls_connection::callback_table_t *const cb_table
 )
 	: io_context(io_ctx),
 	ssl_context(ssl_ctx),

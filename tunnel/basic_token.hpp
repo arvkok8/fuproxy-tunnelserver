@@ -4,10 +4,10 @@
 
 namespace fuproxy
 {
-	class connection_token
+	class basic_token
 	{
 	public:
-		virtual ~connection_token() {}
+		virtual ~basic_token() {}
 
 		/**
 		 * @brief İnsan tarafından okunabilir token. Debug dışında pek bir kullanımı olmayabilir
@@ -23,6 +23,12 @@ namespace fuproxy
 		 * @brief Token nesnesini POD ile oluştur
 		*/
 		virtual void from_data(std::vector<uint8_t>) = 0;
+
+		/**
+		 * @brief Token'in ne zaman geçersiz olacağını getir
+		 * @return UNIX Timestamp
+		*/
+		virtual uint64_t get_expiry() = 0;
 
 	private:
 	};
