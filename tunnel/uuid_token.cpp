@@ -23,7 +23,7 @@ std::string uuid_token::to_string()
 std::vector<uint8_t> uuid_token::to_data()
 {
 	std::vector<uint8_t> ret(sizeof(uint8_t) * 16);
-	std::copy(data.data, data.data + 16, ret);
+	ret.assign(data.data, data.data + 16);
 	return ret;
 }
 

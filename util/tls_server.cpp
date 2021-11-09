@@ -1,6 +1,6 @@
 #include "tls_server.hpp"
 #include <boost/bind/bind.hpp>
-#include <aixlog.hpp>
+#include <clue.hpp>
 #include "util/util.hpp"
 
 //TLS Connection
@@ -33,6 +33,8 @@ void tls_connection::start()
 {
 	if (callback_table) callback_table->connect(shared_from_this()); 
 
+	LOG_DEBUG("tls_connection[" << (void*)this << "] SSL Handshake bekliyor...");
+
 	secure_stream.async_handshake(
 		ssl::stream_base::server,
 		boost::bind(
@@ -47,28 +49,38 @@ void tls_connection::handle_handshake(const boost::system::error_code &err)
 {
 	if (err)
 	{
-		LOG(DEBUG) << endpoint_to_string(secure_stream.lowest_layer())
-			<< " İstemci ile SSL Handshake başarısız, bağlantı kapatılıyor: " << err.message();
+		LOG_DEBUG("tls_connection[" << (void*)this << "] IP "
+			<< endpoint_to_string(secure_stream.lowest_layer())
+			<< " İstemci ile SSL Handshake başarısız, bağlantı kapatılıyor: " << err.message());
 		return;
 	}
 
+	LOG_DEBUG("tls_connection[" << (void*)this << "] IP "
+		<< endpoint_to_string(secure_stream.lowest_layer())
+		<< " İstemci ile SSL Handshake başarılı");
+
 	if (callback_table) callback_table->handshake(shared_from_this());
-	LOG(DEBUG) << endpoint_to_string(secure_stream.lowest_layer())
-		<< "İstemci ile SSL Handshake başarılı";
 }
 
-void tls_connection::read_async()
+void tls_connection::async_read_some()
 {
 	boost::asio::async_read(
 		secure_stream,
 		read_buffer_view,
-		boost::asio::transfer_all(),
+		boost::asio::transfer_at_least(1),
 		boost::bind(
 			&tls_connection::handle_read, shared_from_this(),
 			boost::asio::placeholders::error,
 			boost::asio::placeholders::bytes_transferred
 		)
 	);
+}
+
+void tls_connection::disconnect()
+{
+	secure_stream.lowest_layer().close();
+	//secure_stream.shutdown();
+	//secure_stream.lowest_layer().shutdown(ip::tcp::socket::shutdown_both);
 }
 
 void tls_connection::handle_read(const boost::system::error_code &err, size_t len)
@@ -111,12 +123,12 @@ void tls_server::start_accept()
 {
 	tls_connection::pointer_t new_connection = tls_connection::create(io_context, ssl_context, callback_table);
 
+	LOG_DEBUG("tls_server dinlemeye başladı...");
+
 	acceptor.async_accept(new_connection->socket(), boost::bind(
 		&tls_server::handle_accept, this, new_connection,
 		boost::asio::placeholders::error
 	));
-
-	LOG(DEBUG) << "Sunucu dinlemeye başladı";
 }
 
 void tls_server::handle_accept(
@@ -126,14 +138,14 @@ void tls_server::handle_accept(
 {	
 	if (err)
 	{
-		LOG(ERROR) << endpoint_to_string(new_connection->stream().lowest_layer())
-			<< "async_accept başarısız: " << err.message();
+		LOG_DEBUG("tls_server IP " << endpoint_to_string(new_connection->stream().lowest_layer())
+			<< "ile async_accept başarısız: " << err.message());
 		return;
 	}
 
-	LOG(INFO) << "Yeni istemci: "
+	LOG_DEBUG("Yeni istemci: "
 		<< endpoint_to_string(new_connection->stream().lowest_layer())
-		<< " SSL Handshake bekleniyor...";
+		<< " SSL Handshake bekleniyor...");
 	
 	new_connection->start();
 	start_accept();

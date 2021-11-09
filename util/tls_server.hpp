@@ -12,7 +12,7 @@ class tls_connection : public boost::enable_shared_from_this<tls_connection>
 public:
 	typedef boost::shared_ptr<tls_connection> pointer_t;
 	typedef boost::asio::ssl::stream<boost::asio::ip::tcp::socket> stream_t;
-	typedef tls_connection_events<boost::shared_ptr<tls_connection>> callback_table_t;
+	typedef tls_connection_events callback_table_t;
 
 	/**
 	 * @brief Yeni bir SSL Stream oluştur
@@ -52,7 +52,7 @@ public:
 		);
 	}
 
-	void read_async();
+	void async_read_some();
 	void disconnect();
 
 private:
@@ -65,7 +65,8 @@ private:
 	stream_t secure_stream;
 	callback_table_t *const callback_table;
 	std::vector<uint8_t> read_buffer;
-	connection_events<void>::buffer_t read_buffer_view;
+	connection_events::buffer_t read_buffer_view;
+	
 };
 
 class tls_server

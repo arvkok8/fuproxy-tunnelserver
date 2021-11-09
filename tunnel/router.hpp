@@ -10,13 +10,16 @@ namespace fuproxy
 	class router : public fuproxy::tunnel_entry::entry_target
 	{
 	public:
-		router();
+		router(tunnel_exit *const);
 		~router();
 
-		void packet_in(connection_events<void>::buffer_t &data);
+		void packet_in(
+			connection_events::source_t,
+			connection_events::buffer_t &data
+		);
 		void packet_out();
 
 	private:
-
+		tunnel_exit *const exit;
 	};
 }

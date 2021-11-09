@@ -3,12 +3,13 @@
 #include <vector>
 //#include "tls_server.hpp"
 
-//Circular dependency olayını engellemek için template kullanmam gerekti
-template <typename source_t>
+class tls_connection;
+
 class connection_events
 {
 public:
 	typedef boost::asio::dynamic_vector_buffer<uint8_t, std::vector<uint8_t>::allocator_type> buffer_t;
+	typedef boost::shared_ptr<tls_connection> source_t;
 
 	virtual ~connection_events(){}
 
@@ -16,7 +17,7 @@ public:
 	  * @brief Bağlantı başarılı bir şekilde kuruldu
 	  * @param conn Olayın gerçekleştiği tls_connection nesnesi
 	 */
-	virtual void connect(const source_t &conn) = 0;
+	virtual void connect(source_t conn) = 0;
 	
 	/**
 	 * @brief Soket okuma modunda beklerken bir olay gerçekleşti
@@ -26,7 +27,7 @@ public:
 	 * @param len Buffera kaç byte ver yazıldı
 	*/
 	virtual void read(
-		const source_t &conn,
+		source_t conn,
 		buffer_t &buffer,
 		const boost::system::error_code &err,
 		size_t len
@@ -39,18 +40,17 @@ public:
 	 * @param len Sokete kaç byte veri yazıldı
 	*/
 	virtual void write_done(
-		const source_t &conn,
+		source_t conn,
 		const boost::system::error_code &err,
 		size_t len
 	) = 0;
 
 };
 
-template <typename source_t>
-class tls_connection_events : public connection_events<source_t>
+class tls_connection_events : public connection_events
 {
 public:
 	virtual ~tls_connection_events(){}
 
-	virtual void handshake(const source_t &conn) = 0; //TLS Handshake sonucu geldi
+	virtual void handshake(connection_events::source_t conn) = 0; //TLS Handshake sonucu geldi
 };
