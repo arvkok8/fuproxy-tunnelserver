@@ -20,15 +20,25 @@ std::string uuid_token::to_string()
 	return uuids::to_string(data);
 }
 
-std::vector<uint8_t> uuid_token::to_data()
+std::vector<uint8_t> uuid_token::get_data()
 {
 	std::vector<uint8_t> ret(sizeof(uint8_t) * 16);
 	ret.assign(data.data, data.data + 16);
 	return ret;
 }
 
-void uuid_token::from_data(std::vector<uint8_t> v)
+void uuid_token::set_data(std::vector<uint8_t> v)
 {
 	//! Boundary check yapılmalı
 	std::copy(v.begin(), v.end(), data.data);
+}
+
+time_t uuid_token::get_expiry()
+{
+	return expiry;
+}
+
+void uuid_token::set_expiry(time_t new_expiry)
+{
+	expiry = new_expiry;
 }

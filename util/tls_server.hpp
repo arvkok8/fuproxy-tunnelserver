@@ -38,7 +38,7 @@ public:
 	 * @tparam buffer_t boost::asio tarafından okunabilecek buffer nesnesi
 	*/
 	template <typename buffer_t>
-	void write_async(const buffer_t &buf)
+	void async_write(const buffer_t &buf)
 	{
 		boost::asio::async_write(
 			secure_stream, 
@@ -49,6 +49,29 @@ public:
 				boost::asio::placeholders::error,
 				boost::asio::placeholders::bytes_transferred
 			)
+		);
+	}
+
+	/**
+	 * @brief Asenkron olarak verilen veriyi yaz ve veri ulaşır ulaşmaz bağlantıyı kapat
+	 * @tparam buffer_t boost::asio tarafından okunabilecek buffer nesnesi
+	*/
+	template <typename buffer_t>
+	void async_write_error(const buffer_t &buf)
+	{
+		auto thisptr = shared_from_this();
+
+		boost::asio::async_write(
+			secure_stream, 
+			boost::asio::buffer(buf),
+			boost::asio::transfer_all(),
+			[=](
+				const boost::system::error_code&,
+				size_t
+			)
+			{
+				thisptr->disconnect();
+			}
 		);
 	}
 

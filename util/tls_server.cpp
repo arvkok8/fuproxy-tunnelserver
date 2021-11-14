@@ -78,7 +78,10 @@ void tls_connection::async_read_some()
 
 void tls_connection::disconnect()
 {
-	secure_stream.lowest_layer().close();
+	secure_stream.async_shutdown([&](const boost::system::error_code &){
+		secure_stream.lowest_layer().close();
+	});
+	//secure_stream.lowest_layer().close();
 	//secure_stream.shutdown();
 	//secure_stream.lowest_layer().shutdown(ip::tcp::socket::shutdown_both);
 }

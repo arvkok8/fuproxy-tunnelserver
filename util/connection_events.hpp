@@ -34,7 +34,7 @@ public:
 	) = 0;
 	
 	/**
-	 * @brief write_async fonksiyonun sonucu geldi
+	 * @brief async_write fonksiyonun sonucu geldi
 	 * @param conn Olayın gerçekleştiği connection nesnesi
 	 * @param err Gerçekleşen hata (Success olabilir)
 	 * @param len Sokete kaç byte veri yazıldı

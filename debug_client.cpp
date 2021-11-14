@@ -21,18 +21,20 @@ namespace pt = boost::property_tree;
 
 int main(int argc, char **argv)
 {
-	const char* jsondata = "{\"command\": \"hang yourself\", \"command_args\":{\"ab123\": true}}";
+	const char* jsondata = "{\"command\": \"hang\", \"command_args\":{\"ab123\": true}}";
 	boost::json::value parsedjson = boost::json::parse(jsondata);
+	std::stringstream ss;
+	ss << jsondata;
 
 	pt::ptree root;
-	pt::read_json("jsontest.json", root);
+	pt::read_json(ss, root);
 
 	for(pt::ptree::value_type &v : root.get_child(""))
 	{
 		std::cout << v.first.data() << std::endl;
 	}
 
-	std::cout << root.get("command", "") << std::endl;
+	std::cout << root.get_child("command_args").get<bool>("ab123") << std::endl;
 
 	return 1;
 

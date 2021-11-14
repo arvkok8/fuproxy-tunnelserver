@@ -14,11 +14,14 @@ namespace fuproxy
 
 		std::string to_string();
 		
-		std::vector<uint8_t> to_data();
-
-		void from_data(std::vector<uint8_t>);
-
+		std::vector<uint8_t> get_data();
+		void set_data(std::vector<uint8_t>);
+		
+		time_t get_expiry();
+		void set_expiry(time_t);
+		
 	private:
 		boost::uuids::uuid data;
+		time_t expiry;
 	};
 }
