@@ -16,8 +16,6 @@ Proje üstünde çalışmak istediğiniz klasöre girip:
 ```
 git clone https://github.com/arvkok8/fuproxy-tunnelserver.git
 cd fuproxy-tunnelserver
-git submodule init
-git submodule update
 ```
 
 ## Kullanıcı adı ve Personel Acces Token(PAT)'i hatırlamak için
@@ -34,12 +32,12 @@ git config --global credential.helper store
 Sunucu için
 ```
 make tunnel -j 8 #İşlemcinizde daha çok thread varsa sayıyı ona göre arttırabilirsiniz
-./tunnel_server
+./tunnel_server <port>
 ```
 Debug clienti için
 ```
 make debug_client
-./dclient <host> <port>
+./debug_client <host> <port>
 ```
 Kod nesneleri vb dosyaları silmek için
 ```
