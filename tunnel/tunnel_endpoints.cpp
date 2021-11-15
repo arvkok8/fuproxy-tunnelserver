@@ -1,6 +1,7 @@
 #include "tunnel/tunnel_endpoints.hpp"
 #include <boost/make_shared.hpp>
 #include <clue.hpp>
+#include "util/util.hpp"
 
 using namespace fuproxy;
 
@@ -38,7 +39,9 @@ void tunnel_entry::event_table::connect(tunnel_entry::event_table::source_t conn
 
 void tunnel_entry::event_table::handshake(tunnel_entry::event_table::source_t conn)
 {
-	LOG_DEBUG("ev_tab karşı tarafı bekliyor...");
+	LOG_INFO("ev_tab handshake: "
+				<< endpoint_to_string(conn->socket())
+				<< " İstemcinin komutunu bekliyoruz...");
 	
 	stats_write.lock();
 	connection_stats val = {false, 0, 0};
@@ -58,12 +61,20 @@ void tunnel_entry::event_table::read(
 {
 	if(err)
 	{
-		LOG_DEBUG("ev_tab read: Hata: " << err.message());
 		if(err == boost::asio::error::eof || err == boost::asio::error::connection_reset)
 		{
 			stats_write.lock();
 			stats_table.erase(conn);
 			stats_write.unlock();
+			LOG_DEBUG("ev_tab read: İstemci "
+				<< endpoint_to_string(conn->socket())
+				<< " ile bağlantı kapandı");
+		}
+		else
+		{
+			LOG_WARNING("ev_tab read: İstemci "
+				<< endpoint_to_string(conn->socket())
+				<< " Hata: " << err.message());
 		}
 		return;
 	}
@@ -71,8 +82,11 @@ void tunnel_entry::event_table::read(
 	stats_write.lock();
 
 	auto result_it = stats_table.find(conn);
-	if(result_it == stats_table.end()) {
-		LOG_CRITICAL("ev_tab read: Verilen pointer için veri bulunamadı!");
+	if(result_it == stats_table.end())
+	{
+		LOG_ALERT("ev_tab read: "
+			<< endpoint_to_string(conn->socket())
+			<< " Verilen pointer için veri bulunamadı!");
 	}
 	connection_stats *stats = &result_it->second;
 
@@ -84,7 +98,9 @@ void tunnel_entry::event_table::read(
 		if(stats->received >= stats->to_be_received)
 		{
 			///TODO: Bu kötü bir yöntem. Daha temiz hale getir
-			LOG_DEBUG("ev_tab read: Yeterince okudu v2");
+			LOG_DEBUG("ev_tab read: "
+				<< endpoint_to_string(conn->socket())
+				<< " Yeterince okudu");
 			stats->received = 0;
 			stats->to_be_received = 0;
 			stats->receiving = false;
@@ -92,7 +108,9 @@ void tunnel_entry::event_table::read(
 			buf.consume(sizeof(universal_header));
 			target->packet_in(conn, buf);
 		}
-		else LOG_DEBUG("ev_tab read: Hala okuyor...");
+		else LOG_DEBUG("ev_tab read: "
+			<< endpoint_to_string(conn->socket())
+			<< " Hala okuyor...");
 
 		stats_write.unlock();
 		conn->async_read_some();
@@ -101,7 +119,9 @@ void tunnel_entry::event_table::read(
 	//Yeterince veri aldık
 	else if(stats->receiving && stats->received >= stats->to_be_received)
 	{
-		LOG_DEBUG("ev_tab read: Yeterince okudu v1");
+		LOG_DEBUG("ev_tab read: "
+			<< endpoint_to_string(conn->socket())
+			<< " Yeterince okudu");
 		//Eğer gerektiğinden fazla okuduysak fazla veriyi görmezden gelebiliriz
 		stats->received = 0;
 		stats->to_be_received = 0;
@@ -113,10 +133,14 @@ void tunnel_entry::event_table::read(
 	//Yeni veri almaya başladık
 	else if(!stats->receiving)
 	{
-		LOG_DEBUG("ev_tab read: Yeni veri: " << len);
+		LOG_DEBUG("ev_tab read: Yeni veri: "
+			<< endpoint_to_string(conn->socket())
+			<< " Boyut: " << len);
 		if(len < sizeof(universal_header))
 		{
-			LOG_DEBUG("ev_tab read: Veri çok az: ");
+			LOG_WARNING("ev_tab read: "
+				<< endpoint_to_string(conn->socket())
+				<< " Veri çok az: ");
 			stats_write.unlock();
 			conn->disconnect();
 			return;
@@ -126,7 +150,9 @@ void tunnel_entry::event_table::read(
 		
 		if(mask->signature != universal_header::SIGN)
 		{
-			LOG_DEBUG("ev_tab read: Geçersiz imza: " << std::hex << mask->signature);
+			LOG_WARNING("ev_tab read: "
+				<< endpoint_to_string(conn->socket())
+				<< " Geçersiz imza: " << std::hex << mask->signature);
 			conn->disconnect();
 			stats_write.unlock();
 			return;
@@ -138,7 +164,9 @@ void tunnel_entry::event_table::read(
 
 		if(stats->received == stats->to_be_received)
 		{
-			LOG_DEBUG("ev_tab read: Tüm paket tek seferde geldi");
+			LOG_DEBUG("ev_tab read: "
+				<< endpoint_to_string(conn->socket())
+				<< " Tüm paket tek seferde geldi");
 			stats->received = 0;
 			stats->to_be_received = 0;
 			stats->receiving = false;
@@ -149,12 +177,16 @@ void tunnel_entry::event_table::read(
 		}
 		else if(stats->received > stats->to_be_received)
 		{
-			LOG_DEBUG("ev_tab read: gereğinden fazla veri var, güvenilmez");
+			LOG_DEBUG("ev_tab read: "
+				<< endpoint_to_string(conn->socket())
+				<< " Header'da belirtilen veriden fazla veri geldi. Riskli olduğu için kapatılıyor");
 			conn->disconnect();
 		}
 		else conn->async_read_some();
 
-		LOG_DEBUG("ev_tab read: Hala okunacak veri var");
+		LOG_DEBUG("ev_tab read: "
+			<< endpoint_to_string(conn->socket())
+			<< " Hala okunacak veri var");
 		stats_write.unlock();
 	}
 }
@@ -170,9 +202,9 @@ void tunnel_entry::event_table::write_done(
 
 void tunnel_entry::start_listen()
 {
-	LOG_DEBUG("tunnel_entry dinlemeyi deniyor...");
+	LOG_DEBUG("tunnel_entry: dinlemeyi deniyor...");
 	server.start_accept();
-	LOG_DEBUG("tunnel_entry dinleme başarılı");
+	LOG_DEBUG("tunnel_entry: dinleme başarılı");
 }
 
 /*****************************************************************************/

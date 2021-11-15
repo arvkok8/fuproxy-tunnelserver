@@ -33,7 +33,9 @@ void tls_connection::start()
 {
 	if (callback_table) callback_table->connect(shared_from_this()); 
 
-	LOG_DEBUG("tls_connection[" << (void*)this << "] SSL Handshake bekliyor...");
+	LOG_DEBUG("tls_connection[" << (void*)this << "]: "
+			<< endpoint_to_string(this->socket())
+			<< " SSL Handshake bekliyor...");
 
 	secure_stream.async_handshake(
 		ssl::stream_base::server,
@@ -49,13 +51,13 @@ void tls_connection::handle_handshake(const boost::system::error_code &err)
 {
 	if (err)
 	{
-		LOG_DEBUG("tls_connection[" << (void*)this << "] IP "
+		LOG_DEBUG("tls_connection[" << (void*)this << "]: "
 			<< endpoint_to_string(secure_stream.lowest_layer())
 			<< " İstemci ile SSL Handshake başarısız, bağlantı kapatılıyor: " << err.message());
 		return;
 	}
 
-	LOG_DEBUG("tls_connection[" << (void*)this << "] IP "
+	LOG_DEBUG("tls_connection[" << (void*)this << "]: "
 		<< endpoint_to_string(secure_stream.lowest_layer())
 		<< " İstemci ile SSL Handshake başarılı");
 
@@ -117,6 +119,7 @@ tls_server::tls_server(
 	: io_context(io_ctx),
 	ssl_context(ssl_ctx),
 	acceptor(io_context, ip::tcp::endpoint(ip::tcp::v4(), listen_port)),
+	port(listen_port),
 	callback_table(cb_table)
 {
 	start_accept();
@@ -126,7 +129,7 @@ void tls_server::start_accept()
 {
 	tls_connection::pointer_t new_connection = tls_connection::create(io_context, ssl_context, callback_table);
 
-	LOG_DEBUG("tls_server dinlemeye başladı...");
+	LOG_DEBUG("tls_server: " << port << " portunda dinlemeye başladı...");
 
 	acceptor.async_accept(new_connection->socket(), boost::bind(
 		&tls_server::handle_accept, this, new_connection,
@@ -141,12 +144,12 @@ void tls_server::handle_accept(
 {	
 	if (err)
 	{
-		LOG_DEBUG("tls_server IP " << endpoint_to_string(new_connection->stream().lowest_layer())
+		LOG_DEBUG("tls_server: IP " << endpoint_to_string(new_connection->stream().lowest_layer())
 			<< "ile async_accept başarısız: " << err.message());
 		return;
 	}
 
-	LOG_DEBUG("Yeni istemci: "
+	LOG_DEBUG("tls_server: "
 		<< endpoint_to_string(new_connection->stream().lowest_layer())
 		<< " SSL Handshake bekleniyor...");
 	

@@ -99,12 +99,16 @@ void router::packet_out(/*???*/)
 
 void router::handle_start_tunnel(connection_events::source_t src, boost::property_tree::ptree payload)
 {
-	LOG_DEBUG("router start_tunnel: İstemci " << endpoint_to_string(src->socket())
+	LOG_NOTICE("router start_tunnel: İstemci " << endpoint_to_string(src->socket())
 		<< " tünel başlatmak istiyor");
 	//command_args nesnesi mevcut mu?
 	auto args_opt = payload.get_child_optional("command_args");
 
 	if(!args_opt.has_value()) {
+		LOG_WARNING("router start_tunnel: İstemci "
+			<< endpoint_to_string(src->socket())
+			<< " \"command_args\" anahatarını vermedi");
+
 		json::object obj;
 		obj["error_code"] = 1;
 		obj["message"] = "command_args nesnesi eksik";
@@ -120,6 +124,10 @@ void router::handle_start_tunnel(connection_events::source_t src, boost::propert
 
 	if(!token_opt.has_value())
 	{
+		LOG_WARNING("router start_tunnel: İstemci "
+			<< endpoint_to_string(src->socket())
+			<< " \"user_token\" anahtarını vermedi");
+
 		json::object obj;
 		obj["error_code"] = 2;
 		obj["message"] = "user_token mevcut değil";
@@ -160,7 +168,7 @@ void router::handle_start_tunnel(connection_events::source_t src, boost::propert
 
 void router::handle_connect(connection_events::source_t, boost::property_tree::ptree payload)
 {
-
+	
 }
 
 void router::handle_data(connection_events::source_t, boost::property_tree::ptree payload)
