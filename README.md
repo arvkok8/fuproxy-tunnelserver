@@ -31,7 +31,7 @@ git config --global credential.helper store
 ## Projenin derlenmesi
 Sunucu için
 ```
-make tunnel -j 8 #İşlemcinizde daha çok thread varsa sayıyı ona göre arttırabilirsiniz
+make tunnel_server -j 8 #İşlemcinizde daha çok thread varsa sayıyı ona göre arttırabilirsiniz
 ./tunnel_server <port>
 ```
 Debug clienti için
