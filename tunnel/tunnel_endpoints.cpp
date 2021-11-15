@@ -48,6 +48,7 @@ void tunnel_entry::event_table::handshake(tunnel_entry::event_table::source_t co
 	conn->async_read_some();
 }
 
+//TODO: bunu okuması neredeyse imkansız daha okunabilir bir çözüm bul
 void tunnel_entry::event_table::read(
 	tunnel_entry::event_table::source_t conn,
 	connection_events::buffer_t &buf,
@@ -75,7 +76,7 @@ void tunnel_entry::event_table::read(
 	}
 	connection_stats *stats = &result_it->second;
 
-
+	//Hala veri alıyoruz
 	if(stats->receiving && stats->received < stats->to_be_received)
 	{
 		stats->received += len;
@@ -97,6 +98,7 @@ void tunnel_entry::event_table::read(
 		conn->async_read_some();
 		//Başka bir sınıf bu bağlantıyı elinde tutmalı yoksa silinir
 	}
+	//Yeterince veri aldık
 	else if(stats->receiving && stats->received >= stats->to_be_received)
 	{
 		LOG_DEBUG("ev_tab read: Yeterince okudu v1");
@@ -108,6 +110,7 @@ void tunnel_entry::event_table::read(
 		buf.consume(sizeof(universal_header));
 		target->packet_in(conn, buf);
 	}
+	//Yeni veri almaya başladık
 	else if(!stats->receiving)
 	{
 		LOG_DEBUG("ev_tab read: Yeni veri: " << len);

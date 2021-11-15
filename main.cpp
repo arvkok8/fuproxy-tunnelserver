@@ -36,7 +36,8 @@ int main(int argc, char **argv) {
         io_context,
         ssl_context
     );
-    router _router(&exit);
+    authenticator auth;
+    router _router(&exit, &auth);
     tunnel_entry entry(std::stoi(
         argv[1]),
         io_context,

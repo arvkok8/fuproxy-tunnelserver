@@ -7,15 +7,19 @@
 #include <limits>
 #include <clue.hpp>
 #include "util/util.hpp"
+#include "tunnel/uuid_token.hpp"
+#include "tunnel/errors.hpp"
 
 using namespace fuproxy;
 namespace pt = boost::property_tree;
 namespace json = boost::json;
 
-std::string generate_error_json(const std::function<std::string(std::string)>& func);
+std::string generate_response_json(const std::function<std::string(const std::string&)>& func);
+std::string generate_error_json(const std::string &cmd, const json::object &response);
+std::string generate_success_json(const std::string &cmd, const json::object &response);
 
-router::router(tunnel_exit *const exit_ptr)
-	: exit(exit_ptr)
+router::router(tunnel_exit *const exit_ptr, authenticator *const auth_ptr)
+	: exit(exit_ptr), auth(auth_ptr)
 {
 
 }
@@ -47,7 +51,19 @@ void router::packet_in(connection_events::source_t src, connection_events::buffe
 	data_stream << data;
 
 	pt::ptree root;
-	pt::read_json(data_stream, root);
+	try
+	{
+		pt::read_json(data_stream, root);
+	}
+	catch(const std::exception& e)
+	{
+		LOG_INFO("router in: JSON okuması başarısız: \"" << e.what()
+			<< "\", bağlantı ("
+			<< endpoint_to_string(src->socket()) << ") kapatılıyor");
+		
+		src->disconnect();
+		return;
+	}
 	
 	try
 	{
@@ -66,13 +82,13 @@ void router::packet_in(connection_events::source_t src, connection_events::buffe
 	else if(cmd == "data") handle_data(src, root);
 	else
 	{
-		std::stringstream error_ss;
-		error_ss << "{\"success\": false, \"command\": \""
-			<< cmd << "\", \"response\": {"
-			<< "\"message\": \"Geçersiz komut\"}"
-			<< "}";
-		
-		src->async_write_error(error_ss.str());
+		LOG_INFO("router in: İstemci " << endpoint_to_string(src->socket()) << " geçersiz komut gönderdi");
+		json::object val;
+		val["message"] = "Geçersiz komut";
+		std::string msg = generate_error_json(cmd, val);
+
+		src->async_write_error(msg);
+		return;
 	}
 }
 
@@ -83,7 +99,63 @@ void router::packet_out(/*???*/)
 
 void router::handle_start_tunnel(connection_events::source_t src, boost::property_tree::ptree payload)
 {
-	
+	LOG_DEBUG("router start_tunnel: İstemci " << endpoint_to_string(src->socket())
+		<< " tünel başlatmak istiyor");
+	//command_args nesnesi mevcut mu?
+	auto args_opt = payload.get_child_optional("command_args");
+
+	if(!args_opt.has_value()) {
+		json::object obj;
+		obj["error_code"] = 1;
+		obj["message"] = "command_args nesnesi eksik";
+		std::string msg = generate_error_json("start_tunnel", obj);
+
+		src->async_write_error(msg);
+		return;
+	}
+
+	//user_token mevcut mu?
+	pt::ptree args = args_opt.value();
+	auto token_opt = args.get_optional<std::string>("user_token");
+
+	if(!token_opt.has_value())
+	{
+		json::object obj;
+		obj["error_code"] = 2;
+		obj["message"] = "user_token mevcut değil";
+		std::string msg = generate_error_json("start_tunnel", obj);
+
+		src->async_write_error(msg);
+		return;
+	}
+
+	//user_token'i oluştur
+	uuid_token token;
+
+	//user_token geçerli mi ve bu sunucu için uygun mu?
+	auth->async_query_user_token(
+		&token,
+		[&](basic_token *t, const std::error_code &ec)
+		{
+			if(ec)
+			{
+				json::object obj;
+				obj["error_code"] = ec.value();
+				obj["message"] = ec.message();
+				std::string msg = generate_error_json("start_tunnel", obj);
+				
+				src->async_write_error(msg);
+				return;
+			}
+
+			json::object obj;
+			obj["error_code"] = 0;
+			obj["message"] = "Başarılı";
+			std::string msg = generate_success_json("start_tunnel", obj);
+
+			src->async_write(msg);
+		}
+	);
 }
 
 void router::handle_connect(connection_events::source_t, boost::property_tree::ptree payload)
@@ -97,11 +169,11 @@ void router::handle_data(connection_events::source_t, boost::property_tree::ptre
 }
 
 /**
- * @brief İstemciye göndermek için JSON hata mesajı oluştur
+ * @brief İstemciye göndermek için JSON yanıt mesajı oluştur
  * @param func Paket kökünün her elemanı için çağırılacak fonksyion
- * @return Oluşturulan hata JSON metini
+ * @return Oluşturulan yanıt JSON metini
 */
-std::string generate_error_json(const std::function<std::string(std::string)>& func)
+std::string generate_response_json(const std::function<std::string(const std::string&)>& func)
 {
 	std::stringstream ss;
 
@@ -115,4 +187,30 @@ std::string generate_error_json(const std::function<std::string(std::string)>& f
 	ss << "}";
 
 	return ss.str();
+}
+
+std::string generate_error_json(const std::string &cmd, const json::object &response)
+{
+	return generate_response_json(
+		[&](const std::string &param) -> std::string
+		{
+			if(param == "success") return "false";
+			if(param == "command") return std::string("\"") + cmd + "\"";
+			if(param == "response") return json::serialize(response);
+			return "null";
+		}
+	);
+}
+
+std::string generate_success_json(const std::string &cmd, const json::object &response)
+{
+	return generate_response_json(
+		[&](const std::string &param) -> std::string
+		{
+			if(param == "success") return "true";
+			if(param == "command") return std::string("\"") + cmd + "\"";
+			if(param == "response") return json::serialize(response);
+			return "null";
+		}
+	);
 }

@@ -21,7 +21,7 @@ namespace pt = boost::property_tree;
 
 int main(int argc, char **argv)
 {
-	const char* jsondata = "{\"command\": \"hang\", \"command_args\":{\"ab123\": true}}";
+	/*const char* jsondata = "{\"command\": \"hang\", \"command_args\":{\"ab123\": true}}";
 	boost::json::value parsedjson = boost::json::parse(jsondata);
 	std::stringstream ss;
 	ss << jsondata;
@@ -36,7 +36,7 @@ int main(int argc, char **argv)
 
 	std::cout << root.get_child("command_args").get<bool>("ab123") << std::endl;
 
-	return 1;
+	return 1;*/
 
 	boost::array<char, 2048> buf;
 	boost::asio::io_context io_context;
@@ -54,11 +54,12 @@ int main(int argc, char **argv)
 
 	stream.handshake(ssl::stream_base::client);
 
-	unsigned char data1[sizeof(universal_header)];
-	std::string data2(2700, 'A');
+	std::string tunnel_request = R"({"command":"start_tunnel","command_args":{"user_token":"param olsa da ben alsam"}})";
 
-	std::vector<unsigned char> datafin(718);
-	std::fill(datafin.begin(), datafin.end(), 'A');
+	std::vector<unsigned char> datafin(tunnel_request.size() + 6);
+	std::copy(tunnel_request.begin(), tunnel_request.end(), datafin.begin() + 6);
+
+	//std::cout << (const char*)&datafin[0];
 
 	universal_header *mask = (universal_header*)&datafin[0];
 	mask->signature = mask->SIGN;
@@ -66,7 +67,7 @@ int main(int argc, char **argv)
 
 	//boost::asio::write(stream, boost::asio::buffer(data1));
 	boost::asio::write(stream, boost::asio::buffer(datafin));
-	boost::asio::read(stream, boost::asio::buffer(buf));
+	boost::asio::read(stream, boost::asio::buffer(buf), boost::asio::transfer_at_least(1));
 
 	std::cout << "data: " << buf.data() << std::endl;
 

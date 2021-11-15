@@ -26,8 +26,8 @@ namespace fuproxy
 		 * @param handler İşlem sonucunu işleyecek fonksiyon
 		*/
 		void async_query_user_token(
-			basic_token &token,
-			const std::function<void(basic_token&, const std::error_code&)> &handler
+			basic_token *token,
+			const std::function<void(basic_token*, const std::error_code&)> &handler
 		);
 
 		/**

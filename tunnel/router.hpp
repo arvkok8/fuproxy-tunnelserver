@@ -1,5 +1,6 @@
 #pragma once
 #include "tunnel/tunnel_endpoints.hpp"
+#include <tunnel/authenticator.hpp>
 #include <boost/property_tree/ptree.hpp>
 /**
  * Gelen paketlerin nereye gideceğini belirleyecek class.
@@ -11,7 +12,7 @@ namespace fuproxy
 	class router : public fuproxy::tunnel_entry::entry_target
 	{
 	public:
-		router(tunnel_exit *const);
+		router(tunnel_exit *const, authenticator *const);
 		~router();
 
 		void packet_in(
@@ -22,6 +23,7 @@ namespace fuproxy
 
 	private:
 		tunnel_exit *const exit;
+		authenticator *const auth;
 
 		void handle_start_tunnel(connection_events::source_t, boost::property_tree::ptree tree);
 		void handle_connect(connection_events::source_t, boost::property_tree::ptree tree);

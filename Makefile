@@ -4,43 +4,38 @@ COMP_ARGS = $(COMPILE_DEBUG)
 
 TUNSRV_CARGS = $(COMP_ARGS) -I. -I clue/include
 TUNSRV_LARGS = -lpthread -lcrypto -lssl
-TUNSRV_OBJ = main.o tls_server.o util.o router.o tunnel_endpoints.o user.o uuid_token.o
+
+TUNNEL_SRC = $(wildcard tunnel/*.cpp)
+TUNNEL_OBJ = $(patsubst %.cpp,%.o,$(TUNNEL_SRC))
+UTIL_SRC = $(wildcard util/*.cpp)
+UTIL_OBJ = $(patsubst %.cpp,%.o,$(UTIL_SRC))
+
 TUNSRV_BIN = tunnel_server
 
-all: tunnel debug_client
+all: $(TUNSRV_BIN) debug_client
 
-tunnel: main.cxx tls_server.cxx util.cxx router.cxx tunnel_endpoints.cxx user.cxx uuid_token.cxx
-	$(CXX) $(TUNSRV_LARGS) $(TUNSRV_OBJ) -o $(TUNSRV_BIN)
+$(TUNSRV_BIN): main.o $(TUNNEL_OBJ) $(UTIL_OBJ)
+	$(CXX) $(TUNSRV_LARGS) $^ -o $(TUNSRV_BIN)
 
-main.cxx:
-	$(CXX) $(TUNSRV_CARGS) -c main.cpp
+$(TUNNEL_OBJ): tunnel/%.o: tunnel/%.cpp
+	$(CXX) $(TUNSRV_CARGS) -c $< -o $(patsubst %.cpp,%.o,$<)
 
+$(UTIL_OBJ): util/%.o: util/%.cpp
+	$(CXX) $(TUNSRV_CARGS) -c $< -o $(patsubst %.cpp,%.o,$<)
 
-router.cxx:
-	$(CXX) $(TUNSRV_CARGS) -c tunnel/router.cpp
+main.o:
+	$(CXX) $(TUNSRV_CARGS) -c main.cpp -o main.o
 
-tunnel_endpoints.cxx:
-	$(CXX) $(TUNSRV_CARGS) -c tunnel/tunnel_endpoints.cpp
+debug_client: debug_client.o
+	$(CXX) $(TUNSRV_LARGS) debug_client.cpp -o debug_client
 
-user.cxx:
-	$(CXX) $(TUNSRV_CARGS) -c tunnel/user.cpp
-
-uuid_token.cxx:
-	$(CXX) $(TUNSRV_CARGS) -c tunnel/uuid_token.cpp
-
-
-tls_server.cxx:
-	$(CXX) $(TUNSRV_CARGS) -c util/tls_server.cpp
-
-util.cxx:
-	$(CXX) $(TUNSRV_CARGS) -c util/util.cpp
-
-
-debug_client: debug_client.cxx
-	$(CXX) -lpthread -lssl -lcrypto debug_client.o -o dclient
-
-debug_client.cxx:
+debug_client.o: debug_client.cpp
 	$(CXX) $(TUNSRV_CARGS) -c debug_client.cpp
 
-clean:
-	rm -f $(TUNSRV_BIN) dclient $(TUNSRV_OBJ) debug_client.o
+clean: clean_tunnel_server clean_debug_client
+
+clean_tunnel_server:
+	rm -f $(TUNSRV_BIN) $(TUNNEL_OBJ) $(UTIL_OBJ)
+
+clean_debug_client:
+	rm -f debug_client debug_client.o

@@ -1,3 +1,4 @@
+#pragma once
 #include <string>
 #include <sstream>
 #include <boost/asio.hpp>
@@ -17,8 +18,6 @@ static std::string endpoint_to_string(const boost::asio::basic_socket<P, E> &soc
 	std::stringstream sstream("");
 
 	sstream
-		<< socket.local_endpoint().port()
-		<< ":"
 		<< socket.remote_endpoint().address()
 		<< ":"
 		<< socket.remote_endpoint().port();
