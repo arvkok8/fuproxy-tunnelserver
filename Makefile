@@ -35,7 +35,7 @@ debug_client.o: debug_client.cpp
 clean: clean_tunnel_server clean_debug_client
 
 clean_tunnel_server:
-	rm -f $(TUNSRV_BIN) $(TUNNEL_OBJ) $(UTIL_OBJ)
+	rm -f $(TUNSRV_BIN) $(TUNNEL_OBJ) $(UTIL_OBJ) main.o
 
 clean_debug_client:
 	rm -f debug_client debug_client.o
