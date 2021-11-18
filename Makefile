@@ -15,7 +15,7 @@ TUNSRV_BIN = tunnel_server
 all: $(TUNSRV_BIN) debug_client
 
 $(TUNSRV_BIN): main.o $(TUNNEL_OBJ) $(UTIL_OBJ)
-	$(CXX) $(TUNSRV_LARGS) $^ -o $(TUNSRV_BIN)
+	$(CXX) $^ -o $(TUNSRV_BIN) $(TUNSRV_LARGS)
 
 $(TUNNEL_OBJ): tunnel/%.o: tunnel/%.cpp
 	$(CXX) $(TUNSRV_CARGS) -c $< -o $(patsubst %.cpp,%.o,$<)

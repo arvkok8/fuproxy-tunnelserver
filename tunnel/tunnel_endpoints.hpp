@@ -1,8 +1,12 @@
 #pragma once
 #include <boost/shared_ptr.hpp>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <mutex>
+#include <array>
 #include "util/tls_server.hpp"
+#include "tunnel/tunnel_route_information.hpp"
 
 namespace fuproxy
 {
@@ -85,6 +89,10 @@ namespace fuproxy
 	class tunnel_exit
 	{
 	public:
+		typedef std::string connection_token_t;
+		typedef std::pair<std::error_code, connection_token_t> connection_result_t;
+		typedef std::array<uint8_t, 64> connection_token_pod_t;
+
 		tunnel_exit(
 			boost::asio::io_context&,
 			boost::asio::ssl::context&
@@ -94,21 +102,56 @@ namespace fuproxy
 		/**
 		 * @brief Yeni SSL Bağlantısı oluştur
 		 * @details DİKKAT: SSL el sıkışmasını fonksiyonu çağıran kişini yapması gerekiyor
+		 * @param from Hangi IP adresinden geliyor. Saat çok geç ve ne yaptığımı bilmiyorum, değişebilir
 		 * @param host Bağlanılacak yerin IP adresi veya domaini
 		 * @param port Bağlanlılacak port
-		 * @param cb_table Olaylar için Callback Table
+		 * @param result_cb Sonucun verileceği fonksiyon
 		*/
-		boost::shared_ptr<tls_connection> connect_secure_async(
+		void async_connect_secure(
+			boost::asio::ip::tcp::endpoint from,
 			const std::string &host,
 			unsigned short port,
-			tls_connection::callback_table_t *const cb_table
+			std::function<void(tunnel_exit::connection_result_t)> result_cb
 		);
 
 		//TODO: TLS olmadan bağlanmak için fonksiyonlar ekle
+
+		static connection_token_pod_t generate_connection_token_pod();
+		static std::string generate_connection_token());
+		static std::string generate_connection_token(const connection_token_pod_t&);
 
 		boost::asio::io_context &io_context;
 		boost::asio::ssl::context &ssl_context;
 
 	private:
+		class event_table : public tls_connection_events
+		{
+		public:
+			event_table(tunnel_exit&);
+			~event_table();
+
+			void connect(event_table::source_t);
+			void handshake(event_table::source_t);
+			void read(
+				event_table::source_t,
+				event_table::buffer_t&,
+				const boost::system::error_code&,
+				size_t
+			);
+			void write_done(
+				event_table::source_t,
+				const boost::system::error_code&,
+				size_t
+			);
+
+		private:
+			tunnel_exit &exit_parent;
+		};
+
+		typedef std::unordered_set<connection_token_t, tunnel_route_information> connection_list_t;
+		
+		connection_list_t connection_list;
+
+		event_table ev_table;
 	};
 }

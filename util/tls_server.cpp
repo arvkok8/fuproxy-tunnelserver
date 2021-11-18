@@ -29,11 +29,53 @@ tls_connection::tls_connection(
 	
 }
 
+void tls_connection::async_connect(ip::tcp::resolver::results_type endpoints)
+{
+	LOG_DEBUG("tls_connection async_connect: "
+		<< endpoints.begin()->endpoint().address().to_string()
+		<< " adresine bağlanmayı deniyor..."
+	);
+	boost::asio::async_connect(
+		secure_stream.next_layer(),
+		endpoints,
+		boost::bind(
+			&tls_connection::handle_connect,
+			shared_from_this(),
+			boost::asio::placeholders::error,
+			boost::asio::placeholders::endpoint
+		)
+	);
+}
+
+void tls_connection::handle_connect(
+	const boost::system::error_code &err,
+	const boost::asio::ip::tcp::endpoint &endpoint
+)
+{
+	if(err)
+	{
+		LOG_DEBUG("tls_connection[" << (void*)this  << "] handle_connect: "
+			<< endpoint.address().to_string()
+			<< " adresine bağlanılamadı: " << err.message());
+		
+		///TODO: projeye başlarken plan yapmamanın sonuçları. bu yöntemin sadece tunnel_exit için
+		///      kullanılacağını umuyorum inş başka birşeyle çakışmaz
+		callback_table->connect(nullptr);
+		
+		return;
+	}
+
+	LOG_DEBUG("tls_connection[" << (void*)this  << "] handle_connect: "
+			<< endpoint.address().to_string() << " adresine bağlanıldı");
+
+	this->start();
+}
+
 void tls_connection::start()
 {
 	if (callback_table) callback_table->connect(shared_from_this()); 
 
-	LOG_DEBUG("tls_connection[" << (void*)this << "]: "
+	LOG_DEBUG("tls_connection[" << (void*)this << "] start: "
 			<< endpoint_to_string(this->socket())
 			<< " SSL Handshake bekliyor...");
 
@@ -51,13 +93,13 @@ void tls_connection::handle_handshake(const boost::system::error_code &err)
 {
 	if (err)
 	{
-		LOG_DEBUG("tls_connection[" << (void*)this << "]: "
+		LOG_DEBUG("tls_connection[" << (void*)this << "] handle_handshake: "
 			<< endpoint_to_string(secure_stream.lowest_layer())
 			<< " İstemci ile SSL Handshake başarısız, bağlantı kapatılıyor: " << err.message());
 		return;
 	}
 
-	LOG_DEBUG("tls_connection[" << (void*)this << "]: "
+	LOG_DEBUG("tls_connection[" << (void*)this << "] handle_shake: "
 		<< endpoint_to_string(secure_stream.lowest_layer())
 		<< " İstemci ile SSL Handshake başarılı");
 

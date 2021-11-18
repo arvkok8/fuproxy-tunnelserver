@@ -28,6 +28,8 @@ public:
 	stream_t& stream();
 	stream_t::next_layer_type& socket();
 
+	void async_connect(boost::asio::ip::tcp::resolver::results_type endpoints);
+
 	/**
 	 * @brief SSL Handshake işlemini başlat
 	*/
@@ -81,6 +83,10 @@ public:
 private:
 	tls_connection(boost::asio::io_context&, boost::asio::ssl::context&, callback_table_t *const);
 
+	void handle_connect(
+		const boost::system::error_code&,
+		const boost::asio::ip::tcp::endpoint&
+	);
 	void handle_handshake(const boost::system::error_code&);
 	void handle_read(const boost::system::error_code&, size_t);
 	void handle_write(const boost::system::error_code&, size_t);

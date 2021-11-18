@@ -110,8 +110,9 @@ void router::handle_start_tunnel(connection_events::source_t src, boost::propert
 			<< " \"command_args\" anahatarını vermedi");
 
 		json::object obj;
-		obj["error_code"] = 1;
-		obj["message"] = "command_args nesnesi eksik";
+		std::error_code err = errors::tunnel_errors::missing_argument;
+		obj["error_code"] = err.value();
+		obj["message"] = err.message();
 		std::string msg = generate_error_json("start_tunnel", obj);
 
 		src->async_write_error(msg);
@@ -166,7 +167,35 @@ void router::handle_start_tunnel(connection_events::source_t src, boost::propert
 	);
 }
 
-void router::handle_connect(connection_events::source_t, boost::property_tree::ptree payload)
+void router::handle_connect(connection_events::source_t src, boost::property_tree::ptree payload)
+{
+	LOG_INFO("router connect: İstemci "
+		<< endpoint_to_string(src->socket()) << " dışarıyta bağlanmak istiyor");
+	
+	auto args_opt = payload.get_child_optional("command_args");
+
+	if(!args_opt.has_value())
+	{
+		LOG_WARNING("router connect: İstemci "
+			<< endpoint_to_string(src->socket())
+			<< " \"command_args anahtarını vermedi\"");
+		
+		json::object obj;
+		std::error_code err = errors::tunnel_errors::missing_argument;
+		obj["error_code"] = err.value();
+		obj["message"] = err.message();
+		std::string msg = generate_error_json("connect", obj);
+
+		src->async_write_error(msg);
+		return;
+	}
+
+	pt::ptree args = args_opt.value();
+
+	///TODO: tunnel_exit sınıfını kullanarak bağlantı kur
+}
+
+void router::handle_connect_response()
 {
 	
 }

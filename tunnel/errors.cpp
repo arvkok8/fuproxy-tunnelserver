@@ -23,6 +23,12 @@ std::string tunnel_error_category::message(int ev) const
 			return "token artık geçersiz";
 		case tunnel_errors::timeout:
 			return "sorgu zaman aşımına uğradı";
+		case tunnel_errors::missing_argument:
+			return "argüman eksik";
+		case tunnel_errors::name_resolution_failed:
+			return "verilen alan adı/servis çözülemedi";
+		case tunnel_errors::remote_connection_failed:
+			return "istenilen adrese bağlanılamadı";
 		default:
 			return "bilinmeyen hata";
 	}
