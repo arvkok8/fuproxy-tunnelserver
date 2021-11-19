@@ -1,6 +1,6 @@
 #pragma once
 #include <string>
-#include <boost/make_unique.hpp>
+#include <boost/shared_ptr.hpp>
 
 #include "tunnel/basic_token.hpp"
 

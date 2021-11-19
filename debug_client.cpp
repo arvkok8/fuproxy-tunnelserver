@@ -55,6 +55,13 @@ int main(int argc, char **argv)
 	stream.handshake(ssl::stream_base::client);
 
 	std::string tunnel_request = R"({"command":"start_tunnel","command_args":{"user_token":"param olsa da ben alsam"}})";
+	std::string connect_request = R"({
+		"command": "connect",
+		"command_args": {
+			"to": "violence.de",
+			"port": 80
+		}
+	})";
 
 	std::vector<unsigned char> datafin(tunnel_request.size() + 6);
 	std::copy(tunnel_request.begin(), tunnel_request.end(), datafin.begin() + 6);
@@ -65,11 +72,32 @@ int main(int argc, char **argv)
 	mask->signature = mask->SIGN;
 	mask->len = datafin.size() - 6;
 
+	std::cout << "sending start_tunnel\n";
 	//boost::asio::write(stream, boost::asio::buffer(data1));
 	boost::asio::write(stream, boost::asio::buffer(datafin));
 	boost::asio::read(stream, boost::asio::buffer(buf), boost::asio::transfer_at_least(1));
 
 	std::cout << "data: " << buf.data() << std::endl;
+
+	datafin = std::vector<uint8_t>(connect_request.size() + 6);
+	std::copy(connect_request.begin(), connect_request.end(), datafin.begin() + 6);
+	mask = (universal_header*)&datafin[0];
+	mask->signature = mask->SIGN;
+	mask->len = datafin.size() - 6;
+
+	buf.fill(0);
+
+	sleep(2);
+
+	std::cout << "sending connect\n";
+	boost::asio::write(stream, boost::asio::buffer(datafin));
+	std::cout << "reading...\n";
+	boost::asio::read(stream, boost::asio::buffer(buf), boost::asio::transfer_at_least(1));
+
+	std::cout << "data: " << buf.data() << std::endl;
+
+	char c;
+	std::cin >> c;
 
 	/*while(1)
 	{

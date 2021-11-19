@@ -9,7 +9,10 @@ namespace errors
 		{
 			no_such_token = 10,
 			expired_token,
-			timeout
+			timeout,
+			missing_argument,
+			name_resolution_failed,
+			remote_connection_failed
 		};
 
 		std::error_code make_error_code(tunnel_errors e);

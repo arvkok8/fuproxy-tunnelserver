@@ -2,6 +2,8 @@
 #include "tunnel/tunnel_endpoints.hpp"
 #include <tunnel/authenticator.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <unordered_set>
+
 /**
  * Gelen paketlerin nereye gideceğini belirleyecek class.
  * Sadece headerlar ile çalışacak payload ile bir işi yok
@@ -27,6 +29,7 @@ namespace fuproxy
 
 		void handle_start_tunnel(connection_events::source_t, boost::property_tree::ptree tree);
 		void handle_connect(connection_events::source_t, boost::property_tree::ptree tree);
+		void handle_connect_response();
 		void handle_data(connection_events::source_t, boost::property_tree::ptree tree);
 	};
 }

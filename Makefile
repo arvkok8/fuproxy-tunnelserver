@@ -2,7 +2,7 @@ COMPILE_DEBUG = -Wall -ggdb --std=c++11
 COMPILE_RELEASE = -O3 --std=c++11
 COMP_ARGS = $(COMPILE_DEBUG)
 
-TUNSRV_CARGS = $(COMP_ARGS) -I. -I clue/include
+TUNSRV_CARGS = $(COMP_ARGS) -I. -I clue/include -I cppcodec/
 TUNSRV_LARGS = -lpthread -lcrypto -lssl
 
 TUNNEL_SRC = $(wildcard tunnel/*.cpp)
@@ -15,7 +15,7 @@ TUNSRV_BIN = tunnel_server
 all: $(TUNSRV_BIN) debug_client
 
 $(TUNSRV_BIN): main.o $(TUNNEL_OBJ) $(UTIL_OBJ)
-	$(CXX) $(TUNSRV_LARGS) $^ -o $(TUNSRV_BIN)
+	$(CXX) $^ -o $(TUNSRV_BIN) $(TUNSRV_LARGS)
 
 $(TUNNEL_OBJ): tunnel/%.o: tunnel/%.cpp
 	$(CXX) $(TUNSRV_CARGS) -c $< -o $(patsubst %.cpp,%.o,$<)
