@@ -2,7 +2,7 @@ COMPILE_DEBUG = -Wall -ggdb --std=c++11
 COMPILE_RELEASE = -O3 --std=c++11
 COMP_ARGS = $(COMPILE_DEBUG)
 
-TUNSRV_CARGS = $(COMP_ARGS) -I. -I clue/include
+TUNSRV_CARGS = $(COMP_ARGS) -I. -I clue/include -I cppcodec/
 TUNSRV_LARGS = -lpthread -lcrypto -lssl
 
 TUNNEL_SRC = $(wildcard tunnel/*.cpp)
