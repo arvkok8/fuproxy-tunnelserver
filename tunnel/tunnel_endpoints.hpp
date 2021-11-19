@@ -1,7 +1,6 @@
 #pragma once
 #include <boost/shared_ptr.hpp>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <mutex>
 #include <array>
@@ -89,8 +88,6 @@ namespace fuproxy
 	class tunnel_exit
 	{
 	public:
-		typedef std::string connection_token_t;
-		typedef std::pair<std::error_code, connection_token_t> connection_result_t;
 		typedef std::array<uint8_t, 64> connection_token_pod_t;
 
 		tunnel_exit(
@@ -111,13 +108,28 @@ namespace fuproxy
 			boost::asio::ip::tcp::endpoint from,
 			const std::string &host,
 			unsigned short port,
-			std::function<void(tunnel_exit::connection_result_t)> result_cb
+			std::function<void(tunnel_route_information::connection_result_t)> result_cb
+		);
+
+		/**
+		 * @brief Yeni TCP Bağlantısı oluştur
+		 * @details Daha sonradan tekrar SSLe yükseltebiliriz ama muhtemelen gerek kalmayacak
+		 * @param from Hangi IP adresinden geliyor. Saat çok geç ve ne yaptığımı bilmiyorum, değişebilir
+		 * @param host Bağlanılacak yerin IP adresi veya domaini
+		 * @param port Bağlanlılacak port
+		 * @param result_cb Sonucun verileceği fonksiyon
+		*/
+		void async_connect_unsecure(
+			boost::asio::ip::tcp::endpoint from,
+			const std::string &host,
+			unsigned short port,
+			std::function<void(tunnel_route_information::connection_result_t)> result_cb
 		);
 
 		//TODO: TLS olmadan bağlanmak için fonksiyonlar ekle
 
 		static connection_token_pod_t generate_connection_token_pod();
-		static std::string generate_connection_token());
+		static std::string generate_connection_token();
 		static std::string generate_connection_token(const connection_token_pod_t&);
 
 		boost::asio::io_context &io_context;
@@ -127,6 +139,8 @@ namespace fuproxy
 		class event_table : public tls_connection_events
 		{
 		public:
+			friend class tunnel_exit;
+
 			event_table(tunnel_exit&);
 			~event_table();
 
@@ -148,7 +162,7 @@ namespace fuproxy
 			tunnel_exit &exit_parent;
 		};
 
-		typedef std::unordered_set<connection_token_t, tunnel_route_information> connection_list_t;
+		typedef std::unordered_map<tls_connection_events::source_t, tunnel_route_information> connection_list_t;
 		
 		connection_list_t connection_list;
 

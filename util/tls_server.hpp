@@ -29,11 +29,14 @@ public:
 	stream_t::next_layer_type& socket();
 
 	void async_connect(boost::asio::ip::tcp::resolver::results_type endpoints);
+	void async_connect_unsecure(boost::asio::ip::tcp::resolver::results_type endpoints);
 
 	/**
 	 * @brief SSL Handshake işlemini başlat
 	*/
-	void start();
+	void start_handshake_as_server();
+
+	void start_handshake_as_client();
 	
 	/**
 	 * @brief Asenkron olarak verilen veriyi yaz
@@ -84,6 +87,10 @@ private:
 	tls_connection(boost::asio::io_context&, boost::asio::ssl::context&, callback_table_t *const);
 
 	void handle_connect(
+		const boost::system::error_code&,
+		const boost::asio::ip::tcp::endpoint&
+	);
+	void handle_connect_unsecure(
 		const boost::system::error_code&,
 		const boost::asio::ip::tcp::endpoint&
 	);

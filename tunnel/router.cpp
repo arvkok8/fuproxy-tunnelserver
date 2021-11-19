@@ -163,6 +163,7 @@ void router::handle_start_tunnel(connection_events::source_t src, boost::propert
 			std::string msg = generate_success_json("start_tunnel", obj);
 
 			src->async_write(msg);
+			src->async_read_some();
 		}
 	);
 }
@@ -170,7 +171,7 @@ void router::handle_start_tunnel(connection_events::source_t src, boost::propert
 void router::handle_connect(connection_events::source_t src, boost::property_tree::ptree payload)
 {
 	LOG_INFO("router connect: İstemci "
-		<< endpoint_to_string(src->socket()) << " dışarıyta bağlanmak istiyor");
+		<< endpoint_to_string(src->socket()) << " dışarıya bağlanmak istiyor");
 	
 	auto args_opt = payload.get_child_optional("command_args");
 
@@ -178,7 +179,7 @@ void router::handle_connect(connection_events::source_t src, boost::property_tre
 	{
 		LOG_WARNING("router connect: İstemci "
 			<< endpoint_to_string(src->socket())
-			<< " \"command_args anahtarını vermedi\"");
+			<< " \"command_args\" anahtarını vermedi");
 		
 		json::object obj;
 		std::error_code err = errors::tunnel_errors::missing_argument;
@@ -191,8 +192,64 @@ void router::handle_connect(connection_events::source_t src, boost::property_tre
 	}
 
 	pt::ptree args = args_opt.value();
+	auto target_host_opt = args.get_optional<std::string>("to");
+	auto target_port_opt = args.get_optional<unsigned short>("port");
 
-	///TODO: tunnel_exit sınıfını kullanarak bağlantı kur
+	//Kullanıcı gerekli parametreleri vermiş mi?
+	if(!target_host_opt.has_value() || !target_port_opt.has_value())
+	{
+		LOG_WARNING("router connect: İstemci "
+			<< endpoint_to_string(src->socket())
+			<< " command_args için \"to\" anahtarını vermedi");
+		
+		json::object obj;
+		std::error_code err = errors::tunnel_errors::missing_argument;
+		obj["error_code"] = err.value();
+		obj["message"] = err.message();
+		std::string msg = generate_error_json("connect", obj);
+
+		src->async_write_error(msg);
+		return;
+	}
+
+	exit->async_connect_unsecure(
+		src->socket().remote_endpoint(),
+		target_host_opt.value(),
+		target_port_opt.value(),
+		[=](tunnel_route_information::connection_result_t result){
+			if(result.first)
+			{
+				LOG_NOTICE("router connect: İstemci "
+					<< endpoint_to_string(src->socket())
+					<< " nin bağlanmak istediği "
+					<< target_host_opt.value()
+					<< " adrese erişlemedi: " << result.first.message());
+				
+				json::object obj;
+				obj["error_code"] = result.first.value();
+				obj["message"] = result.first.message();
+				std::string msg = generate_error_json("connect", obj);
+
+				src->async_write_error(msg);
+				return;
+			}
+
+			LOG_NOTICE("router connect: İstemci "
+				<< endpoint_to_string(src->socket())
+				<< " nin bağlanmak istediği "
+				<< target_host_opt.value()
+				<< " adrese bağlanıldı");
+			
+			json::object obj;
+			obj["error_code"] = 0;
+			obj["message"] = "başarılı";
+			obj["connection_token"] = result.second;
+
+			std::string msg = generate_success_json("connect", obj);
+			src->async_write(msg);
+			src->async_read_some();
+		}
+	);
 }
 
 void router::handle_connect_response()

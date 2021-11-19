@@ -31,7 +31,7 @@ tls_connection::tls_connection(
 
 void tls_connection::async_connect(ip::tcp::resolver::results_type endpoints)
 {
-	LOG_DEBUG("tls_connection async_connect: "
+	LOG_DEBUG("tls_connection[" << static_cast<void*>(this) << "] async_connect: "
 		<< endpoints.begin()->endpoint().address().to_string()
 		<< " adresine bağlanmayı deniyor..."
 	);
@@ -47,6 +47,25 @@ void tls_connection::async_connect(ip::tcp::resolver::results_type endpoints)
 	);
 }
 
+void tls_connection::async_connect_unsecure(ip::tcp::resolver::results_type endpoints)
+{
+	LOG_DEBUG("tls_connection[" << static_cast<void*>(this) << "] async_connect_unsecure: "
+		<< endpoints.begin()->endpoint().address().to_string()
+		<< " adresine bağlanmayı deniyor..."
+	);
+
+	boost::asio::async_connect(
+		secure_stream.next_layer(),
+		endpoints,
+		boost::bind(
+			&tls_connection::handle_connect_unsecure,
+			shared_from_this(),
+			boost::asio::placeholders::error,
+			boost::asio::placeholders::endpoint
+		)
+	);
+}
+
 void tls_connection::handle_connect(
 	const boost::system::error_code &err,
 	const boost::asio::ip::tcp::endpoint &endpoint
@@ -54,7 +73,7 @@ void tls_connection::handle_connect(
 {
 	if(err)
 	{
-		LOG_DEBUG("tls_connection[" << (void*)this  << "] handle_connect: "
+		LOG_DEBUG("tls_connection[" << static_cast<void*>(this)  << "] handle_connect: "
 			<< endpoint.address().to_string()
 			<< " adresine bağlanılamadı: " << err.message());
 		
@@ -65,17 +84,41 @@ void tls_connection::handle_connect(
 		return;
 	}
 
-	LOG_DEBUG("tls_connection[" << (void*)this  << "] handle_connect: "
+	LOG_DEBUG("tls_connection[" << static_cast<void*>(this)  << "] handle_connect: "
 			<< endpoint.address().to_string() << " adresine bağlanıldı");
 
-	this->start();
+	this->start_handshake_as_client();
 }
 
-void tls_connection::start()
+void tls_connection::handle_connect_unsecure(
+	const boost::system::error_code &err,
+	const boost::asio::ip::tcp::endpoint &endpoint
+)
+{
+	if(err)
+	{
+		LOG_DEBUG("tls_connection[" << static_cast<void*>(this)  << "] handle_connect_unsecure: "
+			<< endpoint.address().to_string()
+			<< " adresine bağlanılamadı: " << err.message());
+		
+		///TODO: projeye başlarken plan yapmamanın sonuçları. bu yöntemin sadece tunnel_exit için
+		///      kullanılacağını umuyorum inş başka birşeyle çakışmaz
+		callback_table->connect(nullptr);
+		
+		return;
+	}
+
+	LOG_DEBUG("tls_connection[" << static_cast<void*>(this)  << "] handle_connect_unsecure: "
+			<< endpoint.address().to_string() << " adresine bağlanıldı");
+
+	callback_table->connect(shared_from_this());
+}
+
+void tls_connection::start_handshake_as_server()
 {
 	if (callback_table) callback_table->connect(shared_from_this()); 
 
-	LOG_DEBUG("tls_connection[" << (void*)this << "] start: "
+	LOG_DEBUG("tls_connection[" << static_cast<void*>(this) << "] start_handshake_as_server: "
 			<< endpoint_to_string(this->socket())
 			<< " SSL Handshake bekliyor...");
 
@@ -89,17 +132,35 @@ void tls_connection::start()
 	);
 }
 
+void tls_connection::start_handshake_as_client()
+{
+	if (callback_table) callback_table->connect(shared_from_this()); 
+
+	LOG_DEBUG("tls_connection[" << static_cast<void*>(this) << "] start_handshake_as_client: "
+			<< endpoint_to_string(this->socket())
+			<< " SSL Handshake gönderildi...");
+
+	secure_stream.async_handshake(
+		ssl::stream_base::client,
+		boost::bind(
+			&tls_connection::handle_handshake,
+			shared_from_this(),
+			boost::asio::placeholders::error
+		)
+	);
+}
+
 void tls_connection::handle_handshake(const boost::system::error_code &err)
 {
 	if (err)
 	{
-		LOG_DEBUG("tls_connection[" << (void*)this << "] handle_handshake: "
+		LOG_DEBUG("tls_connection[" << static_cast<void*>(this) << "] handle_handshake: "
 			<< endpoint_to_string(secure_stream.lowest_layer())
 			<< " İstemci ile SSL Handshake başarısız, bağlantı kapatılıyor: " << err.message());
 		return;
 	}
 
-	LOG_DEBUG("tls_connection[" << (void*)this << "] handle_shake: "
+	LOG_DEBUG("tls_connection[" << static_cast<void*>(this) << "] handle_shake: "
 		<< endpoint_to_string(secure_stream.lowest_layer())
 		<< " İstemci ile SSL Handshake başarılı");
 
@@ -195,6 +256,6 @@ void tls_server::handle_accept(
 		<< endpoint_to_string(new_connection->stream().lowest_layer())
 		<< " SSL Handshake bekleniyor...");
 	
-	new_connection->start();
+	new_connection->start_handshake_as_server();
 	start_accept();
 }

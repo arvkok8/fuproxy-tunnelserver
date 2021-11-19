@@ -4,11 +4,13 @@
 #include <random>
 #include <ctime>
 #include <clue.hpp>
+#include <cppcodec/base64_rfc4648.hpp>
 #include "util/util.hpp"
 #include "tunnel/errors.hpp"
 
 using namespace fuproxy;
 namespace ip = boost::asio::ip;
+using base64 = cppcodec::base64_rfc4648;
 
 //Tunnel Entry
 
@@ -245,12 +247,30 @@ tunnel_exit::event_table::~event_table()
 
 void tunnel_exit::event_table::connect(tunnel_exit::event_table::source_t conn)
 {
+	auto result = exit_parent.connection_list.find(conn);
 
+	if(result == exit_parent.connection_list.end())
+	{
+		LOG_ALERT("tunnel_exit::event_table connect: tls_connection["
+			<< static_cast<void*>(conn.get()) << "] bağlantı listesinde yok! Görmezden geliniyor");
+		conn->disconnect();
+		return;
+	}
+
+	LOG_DEBUG("tunnel_exit::event_table connect: tls_connection["
+		<< (void*)conn.get() << "] "
+		<< conn->socket().local_endpoint().address().to_string()
+		<< " ile bağlantı kurdu.");
+	
+	std::error_code ec = static_cast<errors::tunnel_errors>(0);
+	auto ret = std::make_pair(ec, result->second.token);
+
+	result->second.cb(ret);
 }
 
 void tunnel_exit::event_table::handshake(tunnel_exit::event_table::source_t conn)
 {
-
+	
 }
 
 void tunnel_exit::event_table::read(
@@ -276,14 +296,14 @@ void tunnel_exit::async_connect_secure(
 	ip::tcp::endpoint from,
 	const std::string &host,
 	unsigned short port,
-	std::function<void(tunnel_exit::connection_result_t)> result_cb
+	std::function<void(tunnel_route_information::connection_result_t)> result_cb
 )
 {
-	auto ret = std::make_pair<std::error_code, connection_token_t>(
+	auto ret = std::make_pair<std::error_code, tunnel_route_information::connection_token_t>(
 		static_cast<errors::tunnel_errors>(0), ""
 	);
 	std::error_code &ret_error = std::get<0>(ret);
-	connection_token_t &ret_token = std::get<1>(ret);
+	tunnel_route_information::connection_token_t &ret_token = std::get<1>(ret);
 
 	auto conptr = tls_connection::create(io_context, ssl_context, &ev_table);
 	
@@ -297,9 +317,57 @@ void tunnel_exit::async_connect_secure(
 		return;
 	}
 
-	tunnel_route_information route;
-	connection_list.emplace("", route);
+	std::string token = generate_connection_token();
+	tunnel_route_information route{token, from, *endpoints.begin(), conptr, result_cb};
+
+	auto result = connection_list.emplace(conptr, route);
+
+	if(!std::get<1>(result))
+	{
+		LOG_CRITICAL("tunnel_exit async_connect_secure: Bağlantı listeye eklenemedi!");
+		return;
+	}
+
 	conptr->async_connect(endpoints);
+}
+
+void tunnel_exit::async_connect_unsecure(
+	ip::tcp::endpoint from,
+	const std::string &host,
+	unsigned short port,
+	std::function<void(tunnel_route_information::connection_result_t)> result_cb
+)
+{
+	auto ret = std::make_pair<std::error_code, tunnel_route_information::connection_token_t>(
+		static_cast<errors::tunnel_errors>(0), ""
+	);
+	std::error_code &ret_error = std::get<0>(ret);
+	tunnel_route_information::connection_token_t &ret_token = std::get<1>(ret);
+
+	auto conptr = tls_connection::create(io_context, ssl_context, &ev_table);
+	
+	ip::tcp::resolver resolver(io_context);
+	ip::tcp::resolver::results_type endpoints = resolver.resolve(host, std::to_string(port));
+	
+	if(endpoints.begin() == endpoints.end())
+	{
+		ret_error = errors::tunnel_errors::name_resolution_failed;
+		result_cb(ret);
+		return;
+	}
+
+	std::string token = generate_connection_token();
+	tunnel_route_information route{token, from, *endpoints.begin(), conptr, result_cb};
+
+	auto result = connection_list.emplace(conptr, route);
+
+	if(!std::get<1>(result))
+	{
+		LOG_CRITICAL("tunnel_exit async_connect_secure: Bağlantı listeye eklenemedi!");
+		return;
+	}
+
+	conptr->async_connect_unsecure(endpoints);
 }
 
 tunnel_exit::connection_token_pod_t tunnel_exit::generate_connection_token_pod()
@@ -335,5 +403,6 @@ std::string tunnel_exit::generate_connection_token()
 
 std::string tunnel_exit::generate_connection_token(const tunnel_exit::connection_token_pod_t &pod)
 {
-	
+	std::string cpy = base64::encode(pod);
+	return cpy;
 }
