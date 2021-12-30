@@ -181,6 +181,20 @@ void tls_connection::async_read_some()
 	);
 }
 
+void tls_connection::async_read_some_unsecure()
+{
+	boost::asio::async_read(
+		secure_stream.next_layer(),
+		read_buffer_view,
+		boost::asio::transfer_at_least(1),
+		boost::bind(
+			&tls_connection::handle_read, shared_from_this(),
+			boost::asio::placeholders::error,
+			boost::asio::placeholders::bytes_transferred
+		)
+	);
+}
+
 void tls_connection::disconnect()
 {
 	secure_stream.async_shutdown([&](const boost::system::error_code &){
