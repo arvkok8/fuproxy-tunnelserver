@@ -2,6 +2,7 @@
 #include <string>
 #include <sstream>
 #include <boost/asio.hpp>
+#include <boost/json.hpp>
 
 /**
  * @brief SSL Stream nesnesinden SRCPORT:DSTADDR:DSTPORT formatında string üretir
@@ -24,3 +25,7 @@ static std::string endpoint_to_string(const boost::asio::basic_socket<P, E> &soc
 
 	return sstream.str();
 }
+
+std::string generate_response_json(const std::function<std::string(const std::string&)>& func);
+std::string generate_error_json(const std::string &cmd, const boost::json::object &response);
+std::string generate_success_json(const std::string &cmd, const boost::json::object &response);

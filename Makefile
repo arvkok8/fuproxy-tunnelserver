@@ -27,7 +27,7 @@ main.o:
 	$(CXX) $(TUNSRV_CARGS) -c main.cpp -o main.o
 
 debug_client: debug_client.o
-	$(CXX) $(TUNSRV_LARGS) debug_client.cpp -o debug_client
+	$(CXX) $(TUNSRV_LARGS) debug_client.o -o debug_client
 
 debug_client.o: debug_client.cpp
 	$(CXX) $(TUNSRV_CARGS) -c debug_client.cpp

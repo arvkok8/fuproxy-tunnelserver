@@ -57,6 +57,21 @@ public:
 		);
 	}
 
+	template <typename buffer_t>
+	void async_write_unsecure(const buffer_t &buf)
+	{
+		boost::asio::async_write(
+			secure_stream.next_layer(), 
+			boost::asio::buffer(buf),
+			boost::asio::transfer_all(),
+			boost::bind(
+				&tls_connection::handle_write, shared_from_this(),
+				boost::asio::placeholders::error,
+				boost::asio::placeholders::bytes_transferred
+			)
+		);
+	}
+
 	/**
 	 * @brief Asenkron olarak verilen veriyi yaz ve veri ulaşır ulaşmaz bağlantıyı kapat
 	 * @tparam buffer_t boost::asio tarafından okunabilecek buffer nesnesi
@@ -81,6 +96,7 @@ public:
 	}
 
 	void async_read_some();
+	void async_read_some_unsecure();
 	void disconnect();
 
 private:

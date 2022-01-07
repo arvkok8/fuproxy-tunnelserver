@@ -1,5 +1,6 @@
 #pragma once
 #include <boost/shared_ptr.hpp>
+#include <boost/optional.hpp>
 #include <unordered_map>
 #include <utility>
 #include <mutex>
@@ -105,7 +106,7 @@ namespace fuproxy
 		 * @param result_cb Sonucun verileceği fonksiyon
 		*/
 		void async_connect_secure(
-			boost::asio::ip::tcp::endpoint from,
+			connection_events::source_t from,
 			const std::string &host,
 			unsigned short port,
 			std::function<void(tunnel_route_information::connection_result_t)> result_cb
@@ -120,11 +121,13 @@ namespace fuproxy
 		 * @param result_cb Sonucun verileceği fonksiyon
 		*/
 		void async_connect_unsecure(
-			boost::asio::ip::tcp::endpoint from,
+			connection_events::source_t from,
 			const std::string &host,
 			unsigned short port,
 			std::function<void(tunnel_route_information::connection_result_t)> result_cb
 		);
+
+		boost::optional<tunnel_route_information> find_route(tunnel_route_information::connection_token_t);
 
 		//TODO: TLS olmadan bağlanmak için fonksiyonlar ekle
 
@@ -162,9 +165,11 @@ namespace fuproxy
 			tunnel_exit &exit_parent;
 		};
 
-		typedef std::unordered_map<tls_connection_events::source_t, tunnel_route_information> connection_list_t;
-		
-		connection_list_t connection_list;
+		typedef std::unordered_map<tunnel_route_information::connection_token_t, connection_events::source_t> token_list_t;
+		typedef std::unordered_map<connection_events::source_t, tunnel_route_information> connection_list_t;
+
+		token_list_t token_list;
+		connection_list_t connection_list; //Aşırı kötü çözümler fakat düzeltmek için vaktim yok
 
 		event_table ev_table;
 	};

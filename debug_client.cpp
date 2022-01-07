@@ -6,6 +6,7 @@
 #include <boost/json/src.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <cppcodec/base64_rfc4648.hpp>
 
 namespace ip = boost::asio::ip;
 namespace ssl = boost::asio::ssl;
@@ -62,6 +63,17 @@ int main(int argc, char **argv)
 			"port": 80
 		}
 	})";
+	std::string data_request_begin = R"({
+		"command": "data",
+		"command_args": {
+			"connection_token": ")";
+	std::string data_request_end = R"(",
+			"data": "R0VUIC8gSFRUUC8xLjENCkhvc3Q6IHZpb2xlbmNlLmRlDQoNCgo="
+		}
+	}
+	)";
+	//^^^^^
+	//GET / HTTP/1.1\r\nHost: violence.de\r\n\r\n
 
 	std::vector<unsigned char> datafin(tunnel_request.size() + 6);
 	std::copy(tunnel_request.begin(), tunnel_request.end(), datafin.begin() + 6);
@@ -95,6 +107,101 @@ int main(int argc, char **argv)
 	boost::asio::read(stream, boost::asio::buffer(buf), boost::asio::transfer_at_least(1));
 
 	std::cout << "data: " << buf.data() << std::endl;
+
+	//json oku ve oluştur
+
+	std::stringstream ss;
+	ss << buf.data();
+	pt::ptree root;
+	pt::read_json(ss, root);
+	auto rootjson = boost::json::parse(ss.str()).as_object();
+
+	auto resp = root.get_child("response");
+	std::string token = rootjson["response"].as_object()["connection_token"].as_string().c_str();
+
+	//std::cout << "aeaeae: " << rootjson["response"].as_object()["connection_token"].as_string() << std::endl;
+
+	std::string data_request = data_request_begin;
+	data_request.append(token);
+	data_request.append(data_request_end);
+
+	datafin = std::vector<uint8_t>(data_request.size() + 6);
+	mask = (universal_header*)&datafin[0];
+	mask->signature = mask->SIGN;
+	mask->len = data_request.length();
+	std::copy(data_request.begin(), data_request.end(), datafin.begin() + 6);
+
+	/*std::cout << "ilk " << datafin.size() << " byte:\n";
+	for(int i = 0; i < datafin.size(); i++)
+	{
+		std::cout << std::hex << (unsigned int)datafin[i];
+		std::cout << std::endl;
+	}*/
+
+	std::cout << "+header: " << data_request << "\n";
+
+	std::cout << "sending data\n";
+	
+	buf.fill(0);
+	boost::asio::write(stream, boost::asio::buffer(datafin));
+
+	std::cout << "listening...\n";
+
+	bool receiving = false;
+	int to_be_received = 0;
+	int received = 0;
+	std::vector<uint8_t> resize_buf;
+
+	while(1)
+	{
+		size_t len = boost::asio::read(stream, boost::asio::buffer(buf), boost::asio::transfer_at_least(1));
+		if(receiving)
+		{
+			if(to_be_received < received)
+			{
+				resize_buf.insert(resize_buf.begin(), buf.begin(), buf.begin() + len);
+				to_be_received += len;
+			}
+			else
+			{
+				std::cout << "done: \n";
+			}
+		}
+		else
+		{
+			if(len < 6)
+			{
+				std::cout << "çok kısa\n";
+				return 5;
+			}
+
+			mask = (universal_header*)buf.data();
+			to_be_received = mask->len;
+			resize_buf.insert(resize_buf.begin(), buf.begin(), buf.begin() + len);
+			received += len;
+		}
+		
+		buf.fill(0);
+
+		if(received >= to_be_received)
+		{
+			std::stringstream ss;
+			resize_buf.push_back(0);
+
+			ss << (const char*)&resize_buf[sizeof(universal_header)];
+
+			//std::cout << "aeeeeeeeeee: " << ss.str() << "\n";
+			boost::json::object root = boost::json::parse(ss.str()).as_object();
+
+			std::string datastr = root["command_args"].as_object()["data"].as_string().data();
+			std::string safestr;
+			auto vec = cppcodec::base64_rfc4648::decode(datastr);
+
+			safestr.insert(safestr.begin(), vec.begin(), vec.end());
+			std::cout << safestr << std::endl;
+			resize_buf.clear();
+		}
+	}
 
 	char c;
 	std::cin >> c;

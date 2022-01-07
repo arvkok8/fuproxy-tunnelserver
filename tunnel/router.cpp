@@ -1,11 +1,12 @@
 #include "tunnel/router.hpp"
 #include <boost/json.hpp>
-#include <boost/json/src.hpp>
+//#include <boost/json/src.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <iostream>
 #include <limits>
 #include <clue.hpp>
+#include <cppcodec/base64_rfc4648.hpp>
 #include "util/util.hpp"
 #include "tunnel/uuid_token.hpp"
 #include "tunnel/errors.hpp"
@@ -213,7 +214,7 @@ void router::handle_connect(connection_events::source_t src, boost::property_tre
 	}
 
 	exit->async_connect_unsecure(
-		src->socket().remote_endpoint(),
+		src,
 		target_host_opt.value(),
 		target_port_opt.value(),
 		[=](tunnel_route_information::connection_result_t result){
@@ -257,54 +258,90 @@ void router::handle_connect_response()
 	
 }
 
-void router::handle_data(connection_events::source_t, boost::property_tree::ptree payload)
+// Kod spagetti olduğu için router tek yönlü çalışacak
+// İstemciden gelen paketler okunup direkt hedefe gönderilecek
+// Hedefden gelen yanıtlar tunnel_exit sınıfında okunup direkt istemciye iletilecek
+// tunnel_exit sınıfı client soketine erişimi var
+void router::handle_data(connection_events::source_t src, boost::property_tree::ptree payload)
 {
+	LOG_DEBUG("router data: İstemci "
+		<< endpoint_to_string(src->socket()) << " yeni veri gönderdi");
 
-}
+	auto args_opt = payload.get_child_optional("command_args");
 
-/**
- * @brief İstemciye göndermek için JSON yanıt mesajı oluştur
- * @param func Paket kökünün her elemanı için çağırılacak fonksyion
- * @return Oluşturulan yanıt JSON metini
-*/
-std::string generate_response_json(const std::function<std::string(const std::string&)>& func)
-{
-	std::stringstream ss;
+	if(!args_opt.has_value())
+	{
+		LOG_WARNING("router data: İstemci "
+			<< endpoint_to_string(src->socket())
+			<< " \"command_args\" anahtarını vermedi");
+		
+		json::object obj;
+		std::error_code err = errors::tunnel_errors::missing_argument;
+		obj["error_code"] = err.value();
+		obj["message"] = err.message();
+		std::string msg = generate_error_json("data", obj);
 
-	ss << "{";
+		src->async_write_error(msg);
+		return;
+	}
 
-	ss << "\"success\":" << func("success") << ",";
-	ss << "\"command\":" << func("command") << ",";
-	ss << "\"command_args\":" << func("command_args") << ",";
-	ss << "\"response\":" << func("response");
+	pt::ptree args = args_opt.value();
+	auto con_token_opt = args.get_optional<std::string>("connection_token");
+	if(!con_token_opt.has_value())
+	{
+		LOG_WARNING("router data: İstemci "
+			<< endpoint_to_string(src->socket())
+			<< " \"connection_token\" anahtarını vermedi");
+		
+		json::object obj;
+		std::error_code err = errors::tunnel_errors::missing_argument;
+		obj["error_code"] = err.value();
+		obj["message"] = err.message();
+		std::string msg = generate_error_json("data", obj);
 
-	ss << "}";
+		src->async_write_error(msg);
+		return;
+	}
 
-	return ss.str();
-}
+	auto data_opt = args.get_optional<std::string>("data");
+	if(!data_opt.has_value())
+	{
+		LOG_WARNING("router data: İstemci "
+			<< endpoint_to_string(src->socket())
+			<< " \"data\" anahtarını vermedi");
+		
+		json::object obj;
+		std::error_code err = errors::tunnel_errors::missing_argument;
+		obj["error_code"] = err.value();
+		obj["message"] = err.message();
+		std::string msg = generate_error_json("data", obj);
 
-std::string generate_error_json(const std::string &cmd, const json::object &response)
-{
-	return generate_response_json(
-		[&](const std::string &param) -> std::string
-		{
-			if(param == "success") return "false";
-			if(param == "command") return std::string("\"") + cmd + "\"";
-			if(param == "response") return json::serialize(response);
-			return "null";
-		}
-	);
-}
+		src->async_write_error(msg);
+		return;
+	}
 
-std::string generate_success_json(const std::string &cmd, const json::object &response)
-{
-	return generate_response_json(
-		[&](const std::string &param) -> std::string
-		{
-			if(param == "success") return "true";
-			if(param == "command") return std::string("\"") + cmd + "\"";
-			if(param == "response") return json::serialize(response);
-			return "null";
-		}
-	);
+	auto route_opt = exit->find_route(con_token_opt.value());
+	if(!route_opt.has_value())
+	{
+		LOG_ALERT("router data: İstemci "
+			<< endpoint_to_string(src->socket())
+			<< " nin verdiği token listede mevcut değil. Hatalı client olabilir. Bağlantı kapatılıyor...");
+		
+		json::object obj;
+		std::error_code err = errors::tunnel_errors::no_such_token;
+		obj["error_code"] = err.value();
+		obj["message"] = err.message();
+		std::string msg = generate_error_json("data", obj);
+
+		src->async_write_error(msg);
+		return;
+	}
+
+	tunnel_route_information route = route_opt.value();
+
+	//Paketin nereye gideceğini biliyoruz, data alanını decode edip yolla
+	std::string data = data_opt.value();
+	std::vector<uint8_t> data_decoded = cppcodec::base64_rfc4648::decode(data);
+
+	route.target->async_write_unsecure(data_decoded);
 }

@@ -11,14 +11,14 @@ public:
     typedef std::pair<std::error_code, connection_token_t> connection_result_t;
     typedef std::function<void(connection_result_t)> cb_t;
 
-    std::string token;
+    connection_token_t token;
     boost::asio::ip::tcp::endpoint from, to;
-    boost::shared_ptr<tls_connection> connection;
+    boost::shared_ptr<tls_connection> source, target;
     cb_t cb;
 
     bool operator==(const tunnel_route_information &r)
     {
-        if(r.token == token && r.from == from && r.to == to && r.connection == connection) return true;
+        if(r.token == token && r.from == from && r.to == to && r.target == target) return true;
         else return false;
     }
 };

@@ -1,5 +1,8 @@
 #include "tunnel/tunnel_endpoints.hpp"
 #include <boost/make_shared.hpp>
+#include <boost/json.hpp>
+//#include <boost/json/src.hpp>
+#include <boost/property_tree/ptree.hpp>
 #include <fstream>
 #include <random>
 #include <ctime>
@@ -10,6 +13,7 @@
 
 using namespace fuproxy;
 namespace ip = boost::asio::ip;
+namespace json = boost::json;
 using base64 = cppcodec::base64_rfc4648;
 
 //Tunnel Entry
@@ -223,7 +227,7 @@ tunnel_exit::tunnel_exit(
 )
 	: io_context(io_ctx),
 	ssl_context(ssl_ctx),
-	connection_list(),
+	token_list(),
 	ev_table(*this)
 {
 	std::srand(std::time(nullptr));
@@ -247,13 +251,23 @@ tunnel_exit::event_table::~event_table()
 
 void tunnel_exit::event_table::connect(tunnel_exit::event_table::source_t conn)
 {
-	auto result = exit_parent.connection_list.find(conn);
+	//auto result = exit_parent.connection_list.find("");
+	//Koli bandı üstüne daha fazla koli bandı fixler
+	tunnel_exit::token_list_t::iterator result = exit_parent.token_list.end();
+	for(auto it = exit_parent.token_list.begin(); it != exit_parent.token_list.end(); it++)
+	{
+		if(it->second == conn)
+		{
+			result = it;
+			break;
+		}
+	}
 
-	if(result == exit_parent.connection_list.end())
+	if(result == exit_parent.token_list.end())
 	{
 		LOG_ALERT("tunnel_exit::event_table connect: tls_connection["
 			<< static_cast<void*>(conn.get()) << "] bağlantı listesinde yok! Görmezden geliniyor");
-		conn->disconnect();
+		if(conn != nullptr) conn->disconnect();
 		return;
 	}
 
@@ -263,9 +277,10 @@ void tunnel_exit::event_table::connect(tunnel_exit::event_table::source_t conn)
 		<< " ile bağlantı kurdu.");
 	
 	std::error_code ec = static_cast<errors::tunnel_errors>(0);
-	auto ret = std::make_pair(ec, result->second.token);
+	auto ret = std::make_pair(ec, result->first);
+	auto route = exit_parent.connection_list.find(result->second);
 
-	result->second.cb(ret);
+	route->second.cb(ret);
 }
 
 void tunnel_exit::event_table::handshake(tunnel_exit::event_table::source_t conn)
@@ -280,7 +295,66 @@ void tunnel_exit::event_table::read(
 	size_t len
 )
 {
+	if(err)
+	{
+		if(err == boost::asio::error::eof || err == boost::asio::error::connection_reset)
+		{
+			LOG_DEBUG("tunnel_exit ev_tab read: İstemci "
+				<< endpoint_to_string(conn->socket())
+				<< " ile bağlantı kapandı");
+		}
+		else
+		{
+			LOG_WARNING("tunnel_exit ev_tab read: İstemci "
+				<< endpoint_to_string(conn->socket())
+				<< " Hata: " << err.message());
+		}
 
+		auto token = exit_parent.connection_list.find(conn);
+		if(token != exit_parent.connection_list.end())
+		{
+			exit_parent.token_list.erase(token->second.token);
+			exit_parent.connection_list.erase(conn);
+		}
+		
+		return;
+	}
+
+	auto route = exit_parent.connection_list.find(conn);
+
+	if(route == exit_parent.connection_list.end())
+	{
+		LOG_ALERT("tunnel_exit ev_tab read: rota bilgisi bulunamadı!");
+		return;
+	}
+
+	//size_t len = buf.data().size();
+	std::stringstream ss;
+	ss << "{\"command\":\"data\",\"command_args\":{\"connection_token\":\"";
+	ss << route->second.token << "\",";
+	ss << "\"data\":\"";
+	ss << base64::encode(static_cast<const uint8_t*>(buf.data().data()), len);
+	ss << "\"}}";
+
+	buf.consume(len);
+
+	std::vector<uint8_t> data_final = std::vector<uint8_t>(ss.str().length() + sizeof(universal_header));
+	std::string final_str = ss.str();
+	
+	data_final.insert(data_final.begin() + sizeof(universal_header), final_str.begin(), final_str.end());
+	
+	universal_header *mask = (universal_header*)&data_final[0];
+	mask->len = ss.str().length();
+	mask->signature = mask->SIGN;
+
+	LOG_DEBUG("tunnel_exit ev_tab read: Hedef "
+		<< endpoint_to_string(conn->socket())
+		<< " sunucudan istemci "
+		<< endpoint_to_string(route->second.target->socket())
+		<< " ye veri gönderiliyor, boyut: " << len << " + overhead");
+	route->second.source->async_write(data_final);
+
+	conn->async_read_some_unsecure();
 }
 
 void tunnel_exit::event_table::write_done(
@@ -289,11 +363,30 @@ void tunnel_exit::event_table::write_done(
 	size_t len
 )
 {
+	if(err)
+	{
+		LOG_NOTICE("router data: "
+			<< endpoint_to_string(conn->socket())
+			<< " paket gönderilemedi: " << err.message()
+		);
+
+		json::object obj;
+		std::error_code err = errors::tunnel_errors::remote_connection_failed;
+		obj["error_code"] = err.value();
+		obj["message"] = err.message();
+		std::string msg = generate_error_json("data", obj);
+
+		conn->async_write_error("msg");
+		return;
+	}
+	
+	LOG_DEBUG("router data: istemci > client");
+	conn->async_read_some_unsecure();
 	
 }
 
 void tunnel_exit::async_connect_secure(
-	ip::tcp::endpoint from,
+	connection_events::source_t from,
 	const std::string &host,
 	unsigned short port,
 	std::function<void(tunnel_route_information::connection_result_t)> result_cb
@@ -318,9 +411,10 @@ void tunnel_exit::async_connect_secure(
 	}
 
 	std::string token = generate_connection_token();
-	tunnel_route_information route{token, from, *endpoints.begin(), conptr, result_cb};
+	tunnel_route_information route{token, from->socket().remote_endpoint(), *endpoints.begin(), from, conptr, result_cb};
 
-	auto result = connection_list.emplace(conptr, route);
+	auto result = token_list.emplace(token, conptr);
+	connection_list.emplace(conptr, route);
 
 	if(!std::get<1>(result))
 	{
@@ -332,7 +426,7 @@ void tunnel_exit::async_connect_secure(
 }
 
 void tunnel_exit::async_connect_unsecure(
-	ip::tcp::endpoint from,
+	connection_events::source_t from,
 	const std::string &host,
 	unsigned short port,
 	std::function<void(tunnel_route_information::connection_result_t)> result_cb
@@ -357,9 +451,10 @@ void tunnel_exit::async_connect_unsecure(
 	}
 
 	std::string token = generate_connection_token();
-	tunnel_route_information route{token, from, *endpoints.begin(), conptr, result_cb};
+	tunnel_route_information route{token, from->socket().remote_endpoint(), *endpoints.begin(), from, conptr, result_cb};
 
-	auto result = connection_list.emplace(conptr, route);
+	auto result = token_list.emplace(token, conptr);
+	connection_list.emplace(conptr, route);
 
 	if(!std::get<1>(result))
 	{
@@ -368,6 +463,22 @@ void tunnel_exit::async_connect_unsecure(
 	}
 
 	conptr->async_connect_unsecure(endpoints);
+}
+
+boost::optional<tunnel_route_information> tunnel_exit::find_route(tunnel_route_information::connection_token_t conn)
+{
+	auto it = token_list.find(conn);
+
+	if(it == token_list.end())
+	{
+		boost::optional<tunnel_route_information> errval;
+		return errval;
+	}
+
+	///TODO: Daha sıkı hata kontrolü
+	auto route = connection_list.find(it->second);
+
+	return boost::make_optional(route->second);
 }
 
 tunnel_exit::connection_token_pod_t tunnel_exit::generate_connection_token_pod()
